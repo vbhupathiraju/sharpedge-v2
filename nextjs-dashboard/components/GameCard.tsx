@@ -41,8 +41,8 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
     if (next && !loaded) {
       setLoadingCharts(true);
       const [oddsRes, divRes] = await Promise.all([
-        fetch(`/api/odds/history?home_team=${encodeURIComponent(homeTeam)}&away_team=${encodeURIComponent(awayTeam)}`),
-        fetch(`/api/divergence/history?home_team=${encodeURIComponent(homeTeam)}&away_team=${encodeURIComponent(awayTeam)}`),
+        fetch(`/api/odds/history?home_team=${encodeURIComponent(homeTeam)}&away_team=${encodeURIComponent(awayTeam)}&commence_time=${encodeURIComponent(commenceTime ?? "")}`),
+        fetch(`/api/divergence/history?home_team=${encodeURIComponent(homeTeam)}&away_team=${encodeURIComponent(awayTeam)}&commence_time=${encodeURIComponent(commenceTime ?? "")}`),
       ]);
       const [odds, div] = await Promise.all([oddsRes.json(), divRes.json()]);
       setOddsData(Array.isArray(odds) ? odds : []);
