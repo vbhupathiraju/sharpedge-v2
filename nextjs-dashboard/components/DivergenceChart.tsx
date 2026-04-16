@@ -2,10 +2,12 @@
 import { useState, useMemo } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer, ReferenceLine,
+  ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 
-const COLORS = ['#00e5c4', '#4dabf7', '#ff6b9d', '#ffa502', '#a29bfe', '#55efc4'];
+const KALSHI_COLOR = '#00e5c4';
+const SPORTSBOOK_COLOR = '#ff6b9d';
+
 const RANGES = [
   { label: '1H', hours: 1 },
   { label: '3H', hours: 3 },
@@ -43,23 +45,38 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-export default function DivergenceChart({ data }: { data: DivRow[] }) {
+export default function DivergenceChart({ data, commenceTime, gameState }: {
+  data: DivRow[];
+  commenceTime?: string;
+  gameState?: string;
+}) {
   const [range, setRange] = useState<number | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
-  // Stable keys from full data
+  const timeWindow = useMemo(() => {
+    if (!commenceTime) return null;
+    return new Date(commenceTime).getTime() - 60 * 60 * 1000;
+  }, [commenceTime]);
+
   const { tickerKeys, allLines } = useMemo(() => {
-    const tickers = [...new Set(data.map(r => r.market_ticker))];
-    const tkeys = tickers.map(t => ({ key: `kalshi_${t.split('-').pop()}`, label: `Kalshi ${t.split('-').pop()}`, ticker: t }));
+    const tickers = [...new Set(data.map(r => r.market_ticker))].sort();
+    const tkeys = tickers.map(t => ({
+      key: `kalshi_${t.split('-').pop()}`,
+      label: `Kalshi ${t.split('-').pop()}`,
+      ticker: t,
+    }));
     const lines = [...tkeys, { key: 'sportsbook_avg', label: 'Sportsbook Avg', ticker: '' }];
     return { tickerKeys: tkeys, allLines: lines };
   }, [data]);
 
   const filtered = useMemo(() => {
-    if (!range) return data;
+    const windowed = timeWindow
+      ? data.filter(r => new Date(r.computed_at).getTime() >= timeWindow)
+      : data;
+    if (!range) return windowed;
     const cutoff = Date.now() - range * 60 * 60 * 1000;
-    return data.filter(r => new Date(r.computed_at).getTime() >= cutoff);
-  }, [data, range]);
+    return windowed.filter(r => new Date(r.computed_at).getTime() >= cutoff);
+  }, [data, range, timeWindow]);
 
   const chartData = useMemo(() => {
     const byTime: Record<string, any> = {};
@@ -104,8 +121,9 @@ export default function DivergenceChart({ data }: { data: DivRow[] }) {
 
       {/* Legend */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        {allLines.map((l, i) => {
-          const color = l.key === 'sportsbook_avg' ? '#ff6b9d' : COLORS[i % COLORS.length];
+        {allLines.map(l => {
+          const color = l.key === 'sportsbook_avg' ? SPORTSBOOK_COLOR : KALSHI_COLOR;
+          const isDashed = l.key === 'sportsbook_avg';
           const isHidden = hidden.has(l.key);
           return (
             <button key={l.key} onClick={() => toggleLine(l.key)} style={{
@@ -115,14 +133,18 @@ export default function DivergenceChart({ data }: { data: DivRow[] }) {
               borderRadius: 20, padding: '3px 10px', cursor: 'pointer',
               opacity: isHidden ? 0.4 : 1, transition: 'all 0.15s',
             }}>
-              <div style={{ width: 20, height: 2, background: color, borderRadius: 1 }} />
+              <svg width={20} height={4}>
+                {isDashed
+                  ? <line x1="0" y1="2" x2="20" y2="2" stroke={color} strokeWidth="2" strokeDasharray="4 2" />
+                  : <line x1="0" y1="2" x2="20" y2="2" stroke={color} strokeWidth="2" />
+                }
+              </svg>
               <span style={{ fontSize: 10, color: isHidden ? 'var(--text-muted)' : color, fontFamily: 'var(--font-mono)' }}>{l.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Chart area — always rendered */}
       {chartData.length === 0 ? (
         <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border)', borderRadius: 8 }}>
           <div style={{ textAlign: 'center' }}>
@@ -142,11 +164,11 @@ export default function DivergenceChart({ data }: { data: DivRow[] }) {
             <YAxis tickFormatter={v => `${(v * 100).toFixed(0)}%`} tick={{ fill: '#4a6580', fontSize: 10, fontFamily: 'Space Mono, monospace' }} tickLine={false} axisLine={false} domain={[0, 1]} width={40} />
             <Tooltip content={<CustomTooltip />} />
             <ReferenceLine y={0.5} stroke="#243548" strokeDasharray="4 4" label={{ value: '50%', fill: '#334a63', fontSize: 10, fontFamily: 'Space Mono' }} />
-            {tickerKeys.map((l, i) => (
+            {tickerKeys.map(l => (
               !hidden.has(l.key) && (
                 <Line key={l.key} type="monotone" dataKey={l.key} name={l.label}
-                  stroke={COLORS[i % COLORS.length]} strokeWidth={2}
-                  dot={{ r: 3, fill: COLORS[i % COLORS.length], strokeWidth: 0 }}
+                  stroke={KALSHI_COLOR} strokeWidth={2}
+                  dot={{ r: 3, fill: KALSHI_COLOR, strokeWidth: 0 }}
                   activeDot={{ r: 6, strokeWidth: 0 }}
                   connectNulls isAnimationActive={false}
                 />
@@ -154,8 +176,8 @@ export default function DivergenceChart({ data }: { data: DivRow[] }) {
             ))}
             {!hidden.has('sportsbook_avg') && (
               <Line type="monotone" dataKey="sportsbook_avg" name="Sportsbook Avg"
-                stroke="#ff6b9d" strokeWidth={2} strokeDasharray="6 3"
-                dot={{ r: 3, fill: '#ff6b9d', strokeWidth: 0 }}
+                stroke={SPORTSBOOK_COLOR} strokeWidth={2} strokeDasharray="6 3"
+                dot={{ r: 3, fill: SPORTSBOOK_COLOR, strokeWidth: 0 }}
                 activeDot={{ r: 6, strokeWidth: 0 }}
                 connectNulls isAnimationActive={false}
               />

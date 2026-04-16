@@ -153,10 +153,10 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
                   </div>
                 )}
                 {loaded && mode === 'divergence' && divData.length > 0 && (
-                  <DivergenceChart data={divData} />
+                  <DivergenceChart data={divData} commenceTime={commenceTime} gameState={score?.state} />
                 )}
                 {loaded && oddsData.length > 0 && (
-                  <OddsChart data={oddsData} title="American Odds Movement" />
+                  <OddsChart data={oddsData} title="American Odds Movement" homeTeam={homeTeam} commenceTime={commenceTime} gameState={score?.state} />
                 )}
                 {loaded && oddsData.length === 0 && divData.length === 0 && (
                   <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '16px 0', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>

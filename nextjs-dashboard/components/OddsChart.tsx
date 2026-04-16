@@ -5,7 +5,22 @@ import {
   ReferenceLine, ResponsiveContainer,
 } from 'recharts';
 
-const COLORS = ['#00e5c4', '#4dabf7', '#ff6b9d', '#ffa502', '#a29bfe', '#55efc4', '#fd79a8', '#74b9ff'];
+// Fixed colors per sportsbook — consistent across all games and sports
+const BOOK_COLORS: Record<string, string> = {
+  draftkings: '#00e5c4',
+  fanduel:    '#4dabf7',
+  betmgm:     '#ffa502',
+  betrivers:  '#a29bfe',
+  caesars:    '#ff6b9d',
+  pointsbet:  '#55efc4',
+  bet365:     '#fd79a8',
+};
+const FALLBACK_COLORS = ['#74b9ff', '#fd79a8', '#badc58', '#f9ca24'];
+
+function bookColor(book: string, idx: number): string {
+  return BOOK_COLORS[book.toLowerCase()] ?? FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+}
+
 const RANGES = [
   { label: '1H', hours: 1 },
   { label: '3H', hours: 3 },
@@ -43,41 +58,84 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-export default function OddsChart({ data, title }: { data: OddsRow[]; title: string }) {
+export default function OddsChart({ data, title, homeTeam, commenceTime, gameState }: {
+  data: OddsRow[];
+  title: string;
+  homeTeam?: string;
+  commenceTime?: string;
+  gameState?: string;
+}) {
   const [range, setRange] = useState<number | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  // Compute time window: 1hr before game start until now (or final)
+  const timeWindow = useMemo(() => {
+    if (!commenceTime) return null;
+    const start = new Date(commenceTime).getTime() - 60 * 60 * 1000;
+    return start;
+  }, [commenceTime]);
 
   const { seriesKeys, colorMap, teamGroups } = useMemo(() => {
     const valid = data.filter(r => {
       const v = Number(r.american_odds);
       return !isNaN(v) && v >= -2500 && v <= 2500;
     });
-    const seen = new Set<string>();
+
+    // Get unique books sorted alphabetically
+    const books = [...new Set(valid.map(r => r.bookmaker_key))].sort();
+    // Get unique teams — home team first, then away
+    const teams = [...new Set(valid.map(r => r.team))].sort((a, b) => {
+      if (homeTeam) {
+        if (a === homeTeam) return -1;
+        if (b === homeTeam) return 1;
+      }
+      return a.localeCompare(b);
+    });
+
+    // Build keys: team__book, sorted by team then book alphabetically
     const keys: string[] = [];
-    for (const r of valid) {
-      const key = `${r.team}__${r.bookmaker_key}`;
-      if (!seen.has(key)) { seen.add(key); keys.push(key); }
+    for (const team of teams) {
+      for (const book of books) {
+        const exists = valid.some(r => r.team === team && r.bookmaker_key === book);
+        if (exists) keys.push(`${team}__${book}`);
+      }
     }
+
+    // Color by book, not by series index
     const cmap: Record<string, string> = {};
-    keys.forEach((k, i) => { cmap[k] = COLORS[i % COLORS.length]; });
+    const bookIdx: Record<string, number> = {};
+    let idx = 0;
+    books.forEach(b => { bookIdx[b] = idx++; });
+    keys.forEach(k => {
+      const book = k.split('__')[1];
+      cmap[k] = bookColor(book, bookIdx[book]);
+    });
+
+    // Group by team
     const groups: Record<string, string[]> = {};
     for (const key of keys) {
       const team = key.split('__')[0];
       if (!groups[team]) groups[team] = [];
       groups[team].push(key);
     }
+
     return { seriesKeys: keys, colorMap: cmap, teamGroups: groups };
-  }, [data]);
+  }, [data, homeTeam]);
 
   const clean = useMemo(() => {
     const valid = data.filter(r => {
       const v = Number(r.american_odds);
       return !isNaN(v) && v >= -2500 && v <= 2500;
     });
-    if (!range) return valid;
+    // Apply time window first (1hr before game)
+    const windowed = timeWindow
+      ? valid.filter(r => new Date(r.computed_at).getTime() >= timeWindow)
+      : valid;
+    // Then apply range filter on top
+    if (!range) return windowed;
     const cutoff = Date.now() - range * 60 * 60 * 1000;
-    return valid.filter(r => new Date(r.computed_at).getTime() >= cutoff);
-  }, [data, range]);
+    return windowed.filter(r => new Date(r.computed_at).getTime() >= cutoff);
+  }, [data, range, timeWindow]);
 
   const chartData = useMemo(() => {
     const byTime: Record<string, any> = {};
@@ -109,6 +167,8 @@ export default function OddsChart({ data, title }: { data: OddsRow[]; title: str
     });
   };
 
+  const isHome = (team: string) => homeTeam && team === homeTeam;
+
   return (
     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
       {/* Header */}
@@ -134,6 +194,7 @@ export default function OddsChart({ data, title }: { data: OddsRow[]; title: str
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
         {Object.entries(teamGroups).map(([team, keys]) => {
           const allHidden = keys.every(k => hidden.has(k));
+          const solid = isHome(team);
           return (
             <div key={team}>
               <button onClick={() => toggleTeam(team)} style={{
@@ -141,8 +202,16 @@ export default function OddsChart({ data, title }: { data: OddsRow[]; title: str
                 display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, width: '100%',
                 opacity: allHidden ? 0.4 : 1, transition: 'opacity 0.15s',
               }}>
-                <div style={{ width: 16, height: 1, background: 'var(--border-bright)' }} />
-                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{team}</span>
+                {/* Solid line for home, dashed for away */}
+                <svg width={16} height={4}>
+                  {solid
+                    ? <line x1="0" y1="2" x2="16" y2="2" stroke="var(--border-bright)" strokeWidth="2" />
+                    : <line x1="0" y1="2" x2="16" y2="2" stroke="var(--border-bright)" strokeWidth="2" strokeDasharray="4 2" />
+                  }
+                </svg>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                  {team}{solid ? ' (home)' : ' (away)'}
+                </span>
                 <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
                 <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{allHidden ? 'show' : 'hide'}</span>
               </button>
@@ -159,7 +228,12 @@ export default function OddsChart({ data, title }: { data: OddsRow[]; title: str
                       borderRadius: 20, padding: '3px 10px', cursor: 'pointer',
                       opacity: isHidden ? 0.35 : 1, transition: 'all 0.15s',
                     }}>
-                      <div style={{ width: 14, height: 2, background: color, borderRadius: 1 }} />
+                      <svg width={14} height={4}>
+                        {isHome(team)
+                          ? <line x1="0" y1="2" x2="14" y2="2" stroke={color} strokeWidth="2" />
+                          : <line x1="0" y1="2" x2="14" y2="2" stroke={color} strokeWidth="2" strokeDasharray="4 2" />
+                        }
+                      </svg>
                       <span style={{ fontSize: 10, color: isHidden ? 'var(--text-muted)' : color, fontFamily: 'var(--font-mono)' }}>{book}</span>
                     </button>
                   );
@@ -170,7 +244,7 @@ export default function OddsChart({ data, title }: { data: OddsRow[]; title: str
         })}
       </div>
 
-      {/* Chart area — always rendered, empty state shown inside */}
+      {/* Chart */}
       {chartData.length === 0 ? (
         <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border)', borderRadius: 8 }}>
           <div style={{ textAlign: 'center' }}>
@@ -190,17 +264,20 @@ export default function OddsChart({ data, title }: { data: OddsRow[]; title: str
             <YAxis tickFormatter={fmtOdds} tick={{ fill: '#4a6580', fontSize: 10, fontFamily: 'Space Mono, monospace' }} tickLine={false} axisLine={false} width={48} />
             <Tooltip content={<CustomTooltip />} />
             <ReferenceLine y={0} stroke="#243548" strokeDasharray="4 4" />
-            {seriesKeys.map(key => (
-              !hidden.has(key) && (
+            {seriesKeys.map(key => {
+              const team = key.split('__')[0];
+              const solid = isHome(team);
+              return !hidden.has(key) && (
                 <Line key={key} type="monotone" dataKey={key}
                   name={key.split('__')[1]}
                   stroke={colorMap[key]} strokeWidth={2}
+                  strokeDasharray={solid ? undefined : '6 3'}
                   dot={{ r: 3, fill: colorMap[key], strokeWidth: 0 }}
                   activeDot={{ r: 6, strokeWidth: 0 }}
                   connectNulls isAnimationActive={false}
                 />
-              )
-            ))}
+              );
+            })}
           </LineChart>
         </ResponsiveContainer>
       )}
