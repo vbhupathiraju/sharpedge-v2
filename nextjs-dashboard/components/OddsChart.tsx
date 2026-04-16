@@ -51,12 +51,25 @@ function fmtTime(ts: string) {
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
+  // Group by team
+  const byTeam: Record<string, any[]> = {};
+  for (const p of payload) {
+    const [team, book] = p.dataKey.split('__');
+    if (!byTeam[team]) byTeam[team] = [];
+    byTeam[team].push({ book, color: p.color, value: p.value });
+  }
   return (
-    <div style={{ background: '#0d1520', border: '1px solid #243548', borderRadius: 8, padding: '10px 14px', fontSize: 12, fontFamily: 'Space Mono, monospace' }}>
-      <div style={{ color: '#6e8caa', marginBottom: 6 }}>{label}</div>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} style={{ color: p.color, marginBottom: 3 }}>
-          {p.name}: <span style={{ color: '#eaf2ff', fontWeight: 700 }}>{fmtOdds(p.value)}</span>
+    <div style={{ background: '#0d1520', border: '1px solid #243548', borderRadius: 8, padding: '10px 14px', fontSize: 12, fontFamily: 'Space Mono, monospace', minWidth: 160 }}>
+      <div style={{ color: '#6e8caa', marginBottom: 8 }}>{label}</div>
+      {Object.entries(byTeam).map(([team, books]) => (
+        <div key={team} style={{ marginBottom: 8 }}>
+          <div style={{ color: '#8aa4bf', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>{team}</div>
+          {books.map(({ book, color, value }) => (
+            <div key={book} style={{ color, marginBottom: 2, display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+              <span>{book}</span>
+              <span style={{ color: '#eaf2ff', fontWeight: 700 }}>{fmtOdds(value)}</span>
+            </div>
+          ))}
         </div>
       ))}
     </div>
@@ -277,8 +290,8 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
                   name={key.split('__')[1]}
                   stroke={colorMap[key]} strokeWidth={2}
                   strokeDasharray={solid ? undefined : '6 3'}
-                  dot={{ r: 3, fill: colorMap[key], strokeWidth: 0 }}
-                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  dot={false}
+                  activeDot={{ r: 5, fill: colorMap[key], strokeWidth: 0 }}
                   connectNulls isAnimationActive={false}
                 />
               );

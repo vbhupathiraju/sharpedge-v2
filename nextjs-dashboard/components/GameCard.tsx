@@ -35,22 +35,33 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
   const isLive = score?.state === 'in';
   const isFinal = score?.state === 'post';
 
+  const fetchCharts = async () => {
+    const [oddsRes, divRes] = await Promise.all([
+      fetch(`/api/odds/history?home_team=${encodeURIComponent(homeTeam)}&away_team=${encodeURIComponent(awayTeam)}&commence_time=${encodeURIComponent(commenceTime ?? "")}`),
+      fetch(`/api/divergence/history?home_team=${encodeURIComponent(homeTeam)}&away_team=${encodeURIComponent(awayTeam)}&commence_time=${encodeURIComponent(commenceTime ?? "")}`),
+    ]);
+    const [odds, div] = await Promise.all([oddsRes.json(), divRes.json()]);
+    setOddsData(Array.isArray(odds) ? odds : []);
+    setDivData(Array.isArray(div) ? div : []);
+  };
+
   const handleOpen = async () => {
     const next = !open;
     setOpen(next);
     if (next && !loaded) {
       setLoadingCharts(true);
-      const [oddsRes, divRes] = await Promise.all([
-        fetch(`/api/odds/history?home_team=${encodeURIComponent(homeTeam)}&away_team=${encodeURIComponent(awayTeam)}&commence_time=${encodeURIComponent(commenceTime ?? "")}`),
-        fetch(`/api/divergence/history?home_team=${encodeURIComponent(homeTeam)}&away_team=${encodeURIComponent(awayTeam)}&commence_time=${encodeURIComponent(commenceTime ?? "")}`),
-      ]);
-      const [odds, div] = await Promise.all([oddsRes.json(), divRes.json()]);
-      setOddsData(Array.isArray(odds) ? odds : []);
-      setDivData(Array.isArray(div) ? div : []);
+      await fetchCharts();
       setLoaded(true);
       setLoadingCharts(false);
     }
   };
+
+  // Refresh chart data every 60s while card is open and game is live
+  useEffect(() => {
+    if (!open || !isLive) return;
+    const t = setInterval(() => fetchCharts(), 60000);
+    return () => clearInterval(t);
+  }, [open, isLive]);
 
   const SPORT_LABELS: Record<string, string> = {
     basketball_nba: 'NBA',
