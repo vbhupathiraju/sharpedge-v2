@@ -22,14 +22,17 @@ export async function GET(request: NextRequest) {
 
   try {
     const sql = `
-      SELECT team, bookmaker_key, computed_at, american_odds,
-             prev_implied_prob, current_implied_prob
+      SELECT team, bookmaker_key, computed_at,
+             AVG(american_odds) as american_odds,
+             AVG(prev_implied_prob) as prev_implied_prob,
+             AVG(current_implied_prob) as current_implied_prob
       FROM sports_betting.sharp_money_signals
       WHERE year='${year}' AND month='${month}' AND day='${day}'
         AND home_team='${home_team.replace(/'/g, "''")}'
         AND away_team='${away_team.replace(/'/g, "''")}'
+      GROUP BY team, bookmaker_key, computed_at
       ORDER BY computed_at ASC
-      LIMIT 1000
+      LIMIT 5000
     `;
 
     const rows = await runAthenaQuery(sql);

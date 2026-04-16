@@ -22,14 +22,17 @@ export async function GET(request: NextRequest) {
 
   try {
     const sql = `
-      SELECT market_ticker, computed_at, kalshi_implied_prob,
-             sportsbook_home_prob, divergence
+      SELECT market_ticker, computed_at,
+             AVG(kalshi_implied_prob) as kalshi_implied_prob,
+             AVG(sportsbook_home_prob) as sportsbook_home_prob,
+             AVG(divergence) as divergence
       FROM sports_betting.divergence_signals
       WHERE year='${year}' AND month='${month}' AND day='${day}'
         AND home_team='${home_team.replace(/'/g, "''")}'
         AND away_team='${away_team.replace(/'/g, "''")}'
+      GROUP BY market_ticker, computed_at
       ORDER BY computed_at ASC
-      LIMIT 1000
+      LIMIT 5000
     `;
 
     const rows = await runAthenaQuery(sql);
