@@ -2,7 +2,7 @@
 Game Events Producer
 --------------------
 Polls ESPN's public API for live game scores/events and publishes
-to the 'raw-game-events' Kafka topic.
+directly to the Kinesis Firehose game-events stream.
 
 No API key required. Zero Odds API quota consumed.
 
@@ -10,10 +10,6 @@ Sports, ESPN endpoints, schedules, and poll intervals are driven by
 sports_config.json. Edit that file to add/remove sports or adjust
 schedules — no code change needed.
 Config is hot-reloaded each poll cycle so changes take effect immediately.
-
-Active window:  poll every poll_interval_active_seconds (default 15s)
-Outside window: poll every poll_interval_idle_seconds (default 300s)
-All sports outside window: smart sleep until next window opens.
 """
 
 import logging
@@ -31,7 +27,7 @@ from config_loader import (
     load_config,
     seconds_until_next_window,
 )
-from msk_producer import create_producer, send_message
+from firehose_producer import put_record
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,7 +35,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("game_events_producer")
 
-TOPIC = "raw-game-events"
 ESPN_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports"
 
 
@@ -48,15 +43,12 @@ def fetch_espn_scoreboard(sport_key: str, sport_cfg: dict) -> list:
     if not league_path:
         logger.warning("No espn_league_path configured for %s", sport_key)
         return []
-
     url = f"{ESPN_BASE_URL}/{league_path}"
     params = sport_cfg.get("espn_params", {})
-
     try:
         resp = requests.get(url, params=params, timeout=15)
         resp.raise_for_status()
-        data = resp.json()
-        events = data.get("events", [])
+        events = resp.json().get("events", [])
         logger.info("Fetched %d ESPN events for %s", len(events), sport_key)
         return events
     except requests.exceptions.HTTPError as e:
@@ -71,28 +63,22 @@ def parse_espn_event(event: dict, sport_key: str) -> dict | None:
     try:
         competition = event.get("competitions", [{}])[0]
         competitors = competition.get("competitors", [])
-
         home = next((c for c in competitors if c.get("order") == 0), None)
         away = next((c for c in competitors if c.get("order") == 1), None)
-
         if not home or not away:
             logger.warning("Could not find home/away for event %s", event.get("id"))
             return None
-
         status = event.get("status", {})
         status_type = status.get("type", {})
         state = status_type.get("state", "pre")
-
         home_score = home.get("score", "0")
         away_score = away.get("score", "0")
-
         scores = None
         if state in ("in", "post"):
             scores = [
                 {"name": home.get("team", {}).get("displayName", ""), "score": home_score},
                 {"name": away.get("team", {}).get("displayName", ""), "score": away_score},
             ]
-
         return {
             "sport": sport_key,
             "game_id": event.get("id"),
@@ -108,7 +94,6 @@ def parse_espn_event(event: dict, sport_key: str) -> dict | None:
             "away_score": away_score,
             "scores": scores,
             "last_update": status_type.get("shortDetail", ""),
-            "ingested_at": datetime.now(timezone.utc).isoformat(),
             "source": "espn",
         }
     except Exception as e:
@@ -117,14 +102,11 @@ def parse_espn_event(event: dict, sport_key: str) -> dict | None:
 
 
 def main():
-    logger.info("Starting Game Events producer (ESPN source)")
-    producer = create_producer()
-
+    logger.info("Starting Game Events producer (ESPN → Firehose)")
     try:
         while True:
             config = load_config()
             active_sports = get_active_sports(config)
-
             in_window = [s for s in active_sports if is_within_schedule(config["sports"][s])]
             out_of_window = [s for s in active_sports if not is_within_schedule(config["sports"][s])]
 
@@ -132,11 +114,9 @@ def main():
                 logger.info("Sports outside schedule window (skipping): %s", out_of_window)
 
             if not in_window:
-                sleep_secs = min(
-                    seconds_until_next_window(config["sports"][s]) for s in active_sports
-                )
+                sleep_secs = min(seconds_until_next_window(config["sports"][s]) for s in active_sports)
                 sleep_secs = min(sleep_secs, 300)
-                logger.info("No active sports in window. Sleeping %ds until next window...", sleep_secs)
+                logger.info("No active sports in window. Sleeping %ds...", sleep_secs)
                 time.sleep(sleep_secs)
                 continue
 
@@ -148,20 +128,15 @@ def main():
                     record = parse_espn_event(event, sport_key)
                     if record is None:
                         continue
-                    key = f"{sport_key}:{record['game_id']}"
-                    send_message(producer, TOPIC, record, key=key)
+                    put_record("game_events", record)
                     total_sent += 1
 
-            producer.flush()
-
             sleep_secs = min(get_poll_interval(config["sports"][s]) for s in in_window)
-            logger.info("Flushed %d game event records. Sleeping %ds...", total_sent, sleep_secs)
+            logger.info("Sent %d game event records to Firehose. Sleeping %ds...", total_sent, sleep_secs)
             time.sleep(sleep_secs)
 
     except KeyboardInterrupt:
         logger.info("Shutting down Game Events producer")
-    finally:
-        producer.close()
 
 
 if __name__ == "__main__":

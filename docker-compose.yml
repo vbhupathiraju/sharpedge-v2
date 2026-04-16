@@ -37,23 +37,8 @@ services:
     restart: unless-stopped
     environment:
       - AWS_DEFAULT_REGION=us-east-1
-    depends_on:
-      - game-events-producer
     volumes:
       - ./producers/sports_config.json:/app/sports_config.json
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  firehose-consumer:
-    build:
-      context: ./producers
-      dockerfile: firehose_consumer/Dockerfile
-    restart: unless-stopped
-    environment:
-      - AWS_DEFAULT_REGION=us-east-1
     logging:
       driver: "json-file"
       options:

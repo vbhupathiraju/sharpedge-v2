@@ -1,15 +1,11 @@
 """
 Odds API Producer
 -----------------
-Polls The Odds API for game odds and publishes raw records to the
-'raw-odds' Kafka topic.
+Polls The Odds API for game odds and publishes raw records directly
+to the Kinesis Firehose odds stream.
 
 Sports, schedules, and poll intervals are driven by sports_config.json.
-Edit that file to add/remove sports or adjust schedules — no code change needed.
 Config is hot-reloaded each poll cycle so changes take effect within one cycle.
-
-Active sports and their Odds API keys are read from config.
-Championship winner markets are not included — game markets only.
 """
 
 import logging
@@ -26,7 +22,7 @@ from config_loader import (
     load_config,
     seconds_until_next_window,
 )
-from msk_producer import create_producer, send_message
+from firehose_producer import put_record
 from secrets_helper import get_odds_api_key
 
 logging.basicConfig(
@@ -35,8 +31,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("odds_api_producer")
 
-# --- Config ---
-TOPIC = "raw-odds"
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 REGIONS = "us"
 MARKETS = "h2h,spreads,totals"
@@ -44,7 +38,6 @@ ODDS_FORMAT = "american"
 
 
 def fetch_odds(api_key: str, odds_api_key: str) -> list:
-    """Fetch current odds for a sport from The Odds API."""
     url = f"{BASE_URL}/{odds_api_key}/odds/"
     params = {
         "apiKey": api_key,
@@ -75,77 +68,46 @@ def fetch_odds(api_key: str, odds_api_key: str) -> list:
 
 
 def main():
-    logger.info("Starting Odds API producer")
+    logger.info("Starting Odds API producer (Odds API → Firehose)")
     api_key = get_odds_api_key()
-    producer = create_producer()
 
     try:
         while True:
-            # Hot-reload config each cycle
             config = load_config()
             active_sports = get_active_sports(config)
-
-            # Determine which sports are within their schedule window
-            in_window = [
-                s for s in active_sports
-                if is_within_schedule(config["sports"][s])
-            ]
-            out_of_window = [
-                s for s in active_sports
-                if not is_within_schedule(config["sports"][s])
-            ]
+            in_window = [s for s in active_sports if is_within_schedule(config["sports"][s])]
+            out_of_window = [s for s in active_sports if not is_within_schedule(config["sports"][s])]
 
             if out_of_window:
-                logger.info(
-                    "Sports outside schedule window (skipping): %s",
-                    out_of_window,
-                )
+                logger.info("Sports outside schedule window (skipping): %s", out_of_window)
 
             if not in_window:
-                # Smart sleep: find the nearest next window open across all sports
-                sleep_secs = min(
-                    seconds_until_next_window(config["sports"][s])
-                    for s in active_sports
-                )
-                sleep_secs = min(sleep_secs, 300)  # cap at 5 min
-                logger.info(
-                    "No active sports in window. Sleeping %ds until next window...",
-                    sleep_secs,
-                )
+                sleep_secs = min(seconds_until_next_window(config["sports"][s]) for s in active_sports)
+                sleep_secs = min(sleep_secs, 300)
+                logger.info("No active sports in window. Sleeping %ds...", sleep_secs)
                 time.sleep(sleep_secs)
                 continue
 
-            # Poll each in-window sport
             for sport_key in in_window:
                 sport_cfg = config["sports"][sport_key]
                 odds_api_key = sport_cfg["odds_api_key"]
                 games = fetch_odds(api_key, odds_api_key)
                 for game in games:
                     game["sport_key"] = sport_key
-                    key = f"{sport_key}:{game.get('id', 'unknown')}"
-                    send_message(producer, TOPIC, game, key=key)
+                    put_record("odds", game)
 
-            producer.flush()
-
-            # Use odds-specific poll interval (slower than ESPN/Kalshi intervals)
             def odds_sleep(s):
                 sport_cfg = config["sports"][s]
                 if is_within_schedule(sport_cfg):
-                    return sport_cfg.get("odds_api_poll_interval_active_seconds",
-                                         get_poll_interval(sport_cfg))
-                return sport_cfg.get("odds_api_poll_interval_idle_seconds",
-                                      get_poll_interval(sport_cfg))
+                    return sport_cfg.get("odds_api_poll_interval_active_seconds", get_poll_interval(sport_cfg))
+                return sport_cfg.get("odds_api_poll_interval_idle_seconds", get_poll_interval(sport_cfg))
 
             sleep_secs = min(odds_sleep(s) for s in in_window)
-            logger.info(
-                "Flushed all messages. Sleeping %ds...", sleep_secs
-            )
+            logger.info("Flushed all odds to Firehose. Sleeping %ds...", sleep_secs)
             time.sleep(sleep_secs)
 
     except KeyboardInterrupt:
         logger.info("Shutting down Odds API producer")
-    finally:
-        producer.close()
 
 
 if __name__ == "__main__":
