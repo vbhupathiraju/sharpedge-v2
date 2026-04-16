@@ -84,7 +84,14 @@ export default function ScoreBoard({ score, sportKey, homeTeam, awayTeam, commen
       state: 'pre',
       period: 0,
       display_clock: '',
+      status_detail: '',
       commence_time: commenceTime ?? '',
+      balls: null,
+      strikes: null,
+      outs: null,
+      on_first: false,
+      on_second: false,
+      on_third: false,
     };
     return <ScoreBoard score={fallback} sportKey={sportKey} homeTeam={homeTeam} awayTeam={awayTeam} commenceTime={commenceTime} />;
   }
