@@ -62,13 +62,13 @@ function BaseDiamond({ onFirst, onSecond, onThird }: { onFirst: boolean; onSecon
   const off = 'var(--border-bright)';
   const s = 10;
   return (
-    <svg width={36} height={36} viewBox="0 0 36 36">
+    <svg width={44} height={40} viewBox="0 0 44 40">
       {/* Second base (top) */}
-      <rect x={14} y={2} width={s} height={s} transform="rotate(45 19 7)" fill={onSecond ? on : off} opacity={onSecond ? 1 : 0.3} />
+      <rect x={16} y={2} width={s} height={s} transform="rotate(45 21 7)" fill={onSecond ? on : off} opacity={onSecond ? 1 : 0.3} />
       {/* Third base (left) */}
-      <rect x={2} y={14} width={s} height={s} transform="rotate(45 7 19)" fill={onThird ? on : off} opacity={onThird ? 1 : 0.3} />
+      <rect x={2} y={16} width={s} height={s} transform="rotate(45 7 21)" fill={onThird ? on : off} opacity={onThird ? 1 : 0.3} />
       {/* First base (right) */}
-      <rect x={26} y={14} width={s} height={s} transform="rotate(45 31 19)" fill={onFirst ? on : off} opacity={onFirst ? 1 : 0.3} />
+      <rect x={30} y={16} width={s} height={s} transform="rotate(45 35 21)" fill={onFirst ? on : off} opacity={onFirst ? 1 : 0.3} />
     </svg>
   );
 }

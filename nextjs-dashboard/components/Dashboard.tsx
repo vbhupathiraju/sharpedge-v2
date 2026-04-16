@@ -78,10 +78,22 @@ export default function Dashboard() {
     }
   };
 
+  const ACTIVE_SPORTS = ['basketball_nba', 'baseball_mlb', 'icehockey_nhl'];
+
+  const loadScores = async () => {
+    const scoreResults = await Promise.all(
+      ACTIVE_SPORTS.map(s => fetch(`/api/scores?sport=${s}`).then(r => r.json()).catch(() => ({})))
+    );
+    const merged: Record<string, any> = {};
+    scoreResults.forEach(r => Object.assign(merged, r));
+    setAllData(prev => ({ ...prev, scores: merged }));
+  };
+
   useEffect(() => {
     loadAll(false);
-    const t = setInterval(() => loadAll(true), 60000);
-    return () => clearInterval(t);
+    const athenaTimer = setInterval(() => loadAll(true), 60000);
+    const scoresTimer = setInterval(() => loadScores(), 15000);
+    return () => { clearInterval(athenaTimer); clearInterval(scoresTimer); };
   }, []);
 
   return (
