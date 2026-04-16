@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
       FROM sports_betting.divergence_signals
       WHERE year='${year}' AND month='${month}' AND day='${day}'
         AND sport_key NOT IN ('basketball_wncaab', 'basketball_ncaaw')
+        AND CAST(date_trunc('day', at_timezone(from_iso8601_timestamp(commence_time), 'America/New_York')) AS DATE) = DATE '${year}-${month}-${day}'
       GROUP BY signal_type, sport_key, home_team, away_team,
                commence_time, event_ticker, market_ticker
       ORDER BY divergence DESC

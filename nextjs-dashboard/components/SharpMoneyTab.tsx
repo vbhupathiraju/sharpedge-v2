@@ -38,8 +38,8 @@ export default function SharpMoneyTab({ date, sport }: { date: string; sport: st
 
   if (loading) return (
     <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '60px 0', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
-      <div style={{ marginBottom: 8 }}>⟳ Querying Snowflake...</div>
-      <div style={{ fontSize: 10, opacity: 0.6 }}>First load may take 30–60s while warehouse resumes</div>
+      <div style={{ marginBottom: 8 }}>⟳ Querying Athena...</div>
+      <div style={{ fontSize: 10, opacity: 0.6 }}>Querying S3 via Athena...</div>
     </div>
   );
   if (error) return <div style={{ color: 'var(--red)', fontSize: 12, padding: 20, background: 'var(--red-dim)', borderRadius: 8, fontFamily: 'var(--font-mono)' }}>Error: {error}</div>;
