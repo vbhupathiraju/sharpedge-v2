@@ -10,7 +10,6 @@ from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
-# Region where secrets are stored
 AWS_REGION = "us-east-1"
 
 
@@ -34,14 +33,3 @@ def get_odds_api_key() -> str:
 def get_kalshi_credentials() -> dict:
     """Returns dict with 'email' and 'api_key' keys."""
     return _get_secret_raw("sports-betting/kalshi-credentials")
-
-
-def get_snowflake_credentials() -> dict:
-    """Returns dict with account, username, password, database, warehouse."""
-    return _get_secret_raw("sports-betting/snowflake-credentials")
-
-
-def get_bootstrap_brokers() -> str:
-    """Returns the MSK bootstrap broker string for IAM auth (TLS endpoints)."""
-    secret = _get_secret_raw("sports-betting/msk-bootstrap-brokers")
-    return secret["bootstrap_brokers"]
