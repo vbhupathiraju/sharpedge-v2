@@ -52,7 +52,14 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
     }
   };
 
-  const sportLabel = sportKey === 'basketball_nba' ? 'NBA' : 'NCAAB';
+  const SPORT_LABELS: Record<string, string> = {
+    basketball_nba: 'NBA',
+    basketball_ncaab: 'NCAAB',
+    baseball_mlb: 'MLB',
+    icehockey_nhl: 'NHL',
+    american_football_nfl: 'NFL',
+  };
+  const sportLabel = SPORT_LABELS[sportKey] ?? sportKey;
   const borderColor = isLive ? 'var(--red)' : open ? 'var(--border-bright)' : 'var(--border)';
   const badgeBg = badgeColor === 'var(--red)' ? 'var(--red-dim)' : badgeColor === 'var(--yellow)' ? 'var(--yellow-dim)' : badgeColor === 'var(--accent)' ? 'var(--accent-glow)' : 'var(--blue-dim)';
 
