@@ -10,7 +10,7 @@ const BOOK_COLORS: Record<string, string> = {
   draftkings: '#00e5c4',
   fanduel:    '#4dabf7',
   betmgm:     '#ffa502',
-  betrivers:  '#a29bfe',
+  betrivers:  '#ff4757',
   caesars:    '#ff6b9d',
   pointsbet:  '#55efc4',
   bet365:     '#fd79a8',
@@ -40,8 +40,13 @@ function fmtOdds(v: number) {
   return n > 0 ? `+${n}` : `${n}`;
 }
 
+function parseTs(ts: string): Date {
+  // Athena returns timestamps as '2026-04-16 21:37:09.864' (no T, no Z) — treat as UTC
+  return new Date(ts.replace(' ', 'T').replace(/(\.\d+)?$/, '$1Z'));
+}
+
 function fmtTime(ts: string) {
-  return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  return parseTs(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -129,7 +134,7 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
     });
     // Apply time window first (1hr before game)
     const windowed = timeWindow
-      ? valid.filter(r => new Date(r.computed_at).getTime() >= timeWindow)
+      ? valid.filter(r => parseTs(r.computed_at).getTime() >= timeWindow)
       : valid;
     // Then apply range filter on top
     if (!range) return windowed;
@@ -141,7 +146,7 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
     const byTime: Record<string, any> = {};
     for (const r of clean) {
       const t = fmtTime(r.computed_at);
-      const ts = new Date(r.computed_at).getTime();
+      const ts = parseTs(r.computed_at).getTime();
       if (!byTime[t]) byTime[t] = { time: t, _ts: ts };
       byTime[t][`${r.team}__${r.bookmaker_key}`] = Number(r.american_odds);
     }

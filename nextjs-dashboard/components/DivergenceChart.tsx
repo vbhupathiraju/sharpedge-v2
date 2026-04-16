@@ -23,8 +23,12 @@ interface DivRow {
   divergence: number;
 }
 
+function parseTs(ts: string): Date {
+  return new Date(ts.replace(' ', 'T').replace(/(\.\d+)?$/, '$1Z'));
+}
+
 function fmtTime(ts: string) {
-  return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  return parseTs(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
 function fmtPct(v: number) {
@@ -71,7 +75,7 @@ export default function DivergenceChart({ data, commenceTime, gameState }: {
 
   const filtered = useMemo(() => {
     const windowed = timeWindow
-      ? data.filter(r => new Date(r.computed_at).getTime() >= timeWindow)
+      ? data.filter(r => parseTs(r.computed_at).getTime() >= timeWindow)
       : data;
     if (!range) return windowed;
     const cutoff = Date.now() - range * 60 * 60 * 1000;
@@ -82,7 +86,7 @@ export default function DivergenceChart({ data, commenceTime, gameState }: {
     const byTime: Record<string, any> = {};
     for (const r of filtered) {
       const t = fmtTime(r.computed_at);
-      const ts = new Date(r.computed_at).getTime();
+      const ts = parseTs(r.computed_at).getTime();
       if (!byTime[t]) byTime[t] = { time: t, _ts: ts, sportsbook_avg: null };
       const short = r.market_ticker.split('-').pop() || r.market_ticker;
       byTime[t][`kalshi_${short}`] = Number(r.kalshi_implied_prob);
