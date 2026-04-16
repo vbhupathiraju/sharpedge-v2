@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
         const status = comp.status || {};
         const statusType = status.type || {};
 
+        const situation = comp.situation || {};
         scores[`${awayName}|${homeName}`] = {
           home_team: homeName,
           away_team: awayName,
@@ -41,7 +42,14 @@ export async function GET(req: NextRequest) {
           state: statusType.state || 'pre',
           period: status.period || 0,
           display_clock: status.displayClock || '',
+          status_detail: statusType.detail || '',
           commence_time: event.date || '',
+          balls: situation.balls ?? null,
+          strikes: situation.strikes ?? null,
+          outs: situation.outs ?? null,
+          on_first: situation.onFirst ?? false,
+          on_second: situation.onSecond ?? false,
+          on_third: situation.onThird ?? false,
         };
       }
     }

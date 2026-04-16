@@ -9,7 +9,14 @@ interface ScoreData {
   state: string;
   period: number;
   display_clock: string;
+  status_detail: string;
   commence_time: string;
+  balls?: number | null;
+  strikes?: number | null;
+  outs?: number | null;
+  on_first?: boolean;
+  on_second?: boolean;
+  on_third?: boolean;
 }
 
 function periodLabel(sportKey: string, period: number) {
@@ -50,6 +57,22 @@ function TeamBlock({ name, score, state, isWinning }: { name: string; score: str
   );
 }
 
+function BaseDiamond({ onFirst, onSecond, onThird }: { onFirst: boolean; onSecond: boolean; onThird: boolean }) {
+  const on = 'var(--accent)';
+  const off = 'var(--border-bright)';
+  const s = 10;
+  return (
+    <svg width={36} height={36} viewBox="0 0 36 36">
+      {/* Second base (top) */}
+      <rect x={14} y={2} width={s} height={s} transform="rotate(45 19 7)" fill={onSecond ? on : off} opacity={onSecond ? 1 : 0.3} />
+      {/* Third base (left) */}
+      <rect x={2} y={14} width={s} height={s} transform="rotate(45 7 19)" fill={onThird ? on : off} opacity={onThird ? 1 : 0.3} />
+      {/* First base (right) */}
+      <rect x={26} y={14} width={s} height={s} transform="rotate(45 31 19)" fill={onFirst ? on : off} opacity={onFirst ? 1 : 0.3} />
+    </svg>
+  );
+}
+
 export default function ScoreBoard({ score, sportKey, homeTeam, awayTeam, commenceTime }: { score?: ScoreData; sportKey: string; homeTeam?: string; awayTeam?: string; commenceTime?: string }) {
   if (!score) {
     const fallback: ScoreData = {
@@ -66,7 +89,8 @@ export default function ScoreBoard({ score, sportKey, homeTeam, awayTeam, commen
     return <ScoreBoard score={fallback} sportKey={sportKey} homeTeam={homeTeam} awayTeam={awayTeam} commenceTime={commenceTime} />;
   }
 
-  const { home_team, away_team, home_score, away_score, state, period, display_clock, commence_time } = score;
+  const { home_team, away_team, home_score, away_score, state, period, display_clock, status_detail, commence_time, balls, strikes, outs, on_first, on_second, on_third } = score;
+  const isMlb = sportKey === 'baseball_mlb';
 
   const homeScoreNum = parseInt(home_score || '0');
   const awayScoreNum = parseInt(away_score || '0');
@@ -74,23 +98,33 @@ export default function ScoreBoard({ score, sportKey, homeTeam, awayTeam, commen
 
   let statusBar: React.ReactNode;
   if (state === 'in') {
-    const p = periodLabel(sportKey, period);
+    const p = isMlb ? (status_detail || `P${period}`) : periodLabel(sportKey, period);
     statusBar = (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)', boxShadow: '0 0 8px var(--red)', animation: 'pulse 1s infinite', flexShrink: 0 }} />
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--red)', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em' }}>
-          LIVE{p ? ` · ${p}` : ''}{display_clock ? ` · ${display_clock}` : ''}
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)', boxShadow: '0 0 8px var(--red)', animation: 'pulse 1s infinite', flexShrink: 0 }} />
+          <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--red)', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em' }}>
+            LIVE{p ? ` · ${p}` : ''}{!isMlb && display_clock ? ` · ${display_clock}` : ''}
+          </span>
+        </div>
+        {isMlb && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+            <span>{balls ?? 0}-{strikes ?? 0} · {outs ?? 0} OUT{outs !== 1 ? 'S' : ''}</span>
+            <BaseDiamond onFirst={!!on_first} onSecond={!!on_second} onThird={!!on_third} />
+          </div>
+        )}
       </div>
     );
   } else if (state === 'post') {
+    const finalLabel = isMlb && status_detail && status_detail !== 'Final' ? status_detail : 'FINAL';
     statusBar = (
-      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 11, letterSpacing: '0.15em' }}>FINAL</span>
+      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 11, letterSpacing: '0.15em' }}>{finalLabel}</span>
     );
   } else {
+    const preLabel = isMlb ? 'FIRST PITCH' : 'TIP-OFF';
     statusBar = (
       <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 11, letterSpacing: '0.1em' }}>
-        TIP-OFF {formatTipoff(commence_time)}
+        {preLabel} {formatTipoff(commence_time)}
       </span>
     );
   }
