@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const ESPN_PATHS: Record<string, string> = {
   basketball_nba: 'basketball/nba',
   basketball_ncaab: 'basketball/mens-college-basketball',
+  baseball_mlb: 'baseball/mlb',
+  icehockey_nhl: 'hockey/nhl',
 };
 
 export async function GET(req: NextRequest) {

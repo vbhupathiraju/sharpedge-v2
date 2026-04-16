@@ -8,7 +8,15 @@
       "poll_interval_idle_seconds": 300,
       "schedule": {
         "timezone": "America/Los_Angeles",
-        "days": ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"],
+        "days": [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday"
+        ],
         "start_time": "15:00",
         "end_time": "23:00"
       },
@@ -58,12 +66,23 @@
       "poll_interval_idle_seconds": 300,
       "schedule": {
         "timezone": "America/Los_Angeles",
-        "days": ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"],
+        "days": [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday"
+        ],
         "start_time": "15:00",
         "end_time": "21:00"
       },
       "espn_league_path": "basketball/mens-college-basketball/scoreboard",
-      "espn_params": {"groups": "50", "limit": "365"},
+      "espn_params": {
+        "groups": "50",
+        "limit": "365"
+      },
       "odds_api_key": "basketball_ncaab",
       "kalshi_prefix": "KXNCAAMBGAME",
       "team_abbr": {}
@@ -120,7 +139,15 @@
       "poll_interval_idle_seconds": 300,
       "schedule": {
         "timezone": "America/Los_Angeles",
-        "days": ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"],
+        "days": [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday"
+        ],
         "start_time": "09:00",
         "end_time": "23:00"
       },
@@ -158,7 +185,8 @@
         "Tampa Bay Rays": "TB",
         "Texas Rangers": "TEX",
         "Toronto Blue Jays": "TOR",
-        "Washington Nationals": "WSH"
+        "Washington Nationals": "WSH",
+        "Athletics": "ATH"
       }
     },
     "icehockey_nhl": {
@@ -169,7 +197,15 @@
       "poll_interval_idle_seconds": 300,
       "schedule": {
         "timezone": "America/Los_Angeles",
-        "days": ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"],
+        "days": [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday"
+        ],
         "start_time": "12:00",
         "end_time": "22:00"
       },
@@ -209,7 +245,8 @@
         "Vancouver Canucks": "VAN",
         "Vegas Golden Knights": "VGK",
         "Washington Capitals": "WSH",
-        "Winnipeg Jets": "WPG"
+        "Winnipeg Jets": "WPG",
+        "Utah Mammoth": "UTA"
       }
     }
   }
