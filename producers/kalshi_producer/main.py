@@ -1,8 +1,9 @@
 """
 Kalshi Producer
 ---------------
-Polls ESPN for today's games, then fetches Kalshi winner markets for
-each game and publishes directly to the Kinesis Firehose kalshi stream.
+Polls ESPN for today's games, fetches all active Kalshi markets for each
+sport's series, matches by team abbreviations, and publishes directly
+to the Kinesis Firehose kalshi stream.
 
 No Kafka dependency. ESPN is called directly each poll cycle.
 Config is hot-reloaded each cycle — adding a new sport requires no code changes.
@@ -62,6 +63,7 @@ def fetch_today_games(sport_key: str, sport_cfg: dict) -> list:
                 "home_team": home.get("team", {}).get("displayName", ""),
                 "away_team": away.get("team", {}).get("displayName", ""),
                 "game_date": game_date,
+                "commence_time": commence_time,
             })
         logger.info("Fetched %d games from ESPN for %s", len(games), sport_key)
         return games
@@ -70,45 +72,60 @@ def fetch_today_games(sport_key: str, sport_cfg: dict) -> list:
         return []
 
 
-def build_kalshi_event_ticker(sport_key, away_team, home_team, game_date, config):
-    sport_cfg = config["sports"].get(sport_key)
-    if not sport_cfg:
-        return None
-    prefix = sport_cfg.get("kalshi_prefix")
-    if not prefix:
-        return None
-    team_abbr = sport_cfg.get("team_abbr", {})
-    try:
-        dt = datetime.strptime(game_date, "%Y-%m-%d")
-    except ValueError:
-        logger.warning("Invalid game_date format: %s", game_date)
-        return None
-    date_str = dt.strftime("%y%b%d").upper()
-    away_abbr = team_abbr.get(away_team)
-    home_abbr = team_abbr.get(home_team)
-    if not away_abbr:
-        logger.warning("No Kalshi abbr for away team '%s' (%s)", away_team, sport_key)
-        return None
-    if not home_abbr:
-        logger.warning("No Kalshi abbr for home team '%s' (%s)", home_team, sport_key)
-        return None
-    return f"{prefix}-{date_str}{away_abbr}{home_abbr}"
-
-
-def fetch_kalshi_markets(event_ticker: str, kalshi_api_key: str) -> list:
+def fetch_kalshi_markets_for_series(series_ticker: str, kalshi_api_key: str) -> list:
+    """Fetch all active Kalshi markets for a series (e.g. KXMLBGAME)."""
     url = f"{KALSHI_BASE_URL}/markets"
     headers = {"Authorization": f"Bearer {kalshi_api_key}"}
-    params = {"limit": 10, "event_ticker": event_ticker}
+    all_markets = []
+    cursor = None
+    today = datetime.now(timezone.utc).strftime("%y%b%d").upper()
+
     try:
-        resp = requests.get(url, headers=headers, params=params, timeout=15)
-        if resp.status_code == 404:
-            logger.debug("No Kalshi market found for event: %s", event_ticker)
-            return []
-        resp.raise_for_status()
-        return resp.json().get("markets", [])
+        for _ in range(5):  # max 5 pages
+            params = {"limit": 100, "series_ticker": series_ticker, "status": "open"}
+            if cursor:
+                params["cursor"] = cursor
+            resp = requests.get(url, headers=headers, params=params, timeout=15)
+            if resp.status_code == 404:
+                return []
+            resp.raise_for_status()
+            data = resp.json()
+            markets = data.get("markets", [])
+            # Filter to today's markets only
+            today_markets = [m for m in markets if today in m.get("ticker", "")]
+            all_markets.extend(today_markets)
+            cursor = data.get("cursor")
+            if not cursor or not markets:
+                break
+        logger.info("Fetched %d active markets for %s (today)", len(all_markets), series_ticker)
+        return all_markets
     except Exception as e:
-        logger.error("Error fetching Kalshi markets for %s: %s", event_ticker, e)
+        logger.error("Error fetching Kalshi markets for %s: %s", series_ticker, e)
         return []
+
+
+def match_game_to_markets(game: dict, markets: list, team_abbr: dict) -> list:
+    """
+    Match a game's home+away teams to Kalshi markets by checking
+    if both team abbreviations appear in the market ticker.
+    """
+    home_abbr = team_abbr.get(game["home_team"])
+    away_abbr = team_abbr.get(game["away_team"])
+    if not home_abbr or not away_abbr:
+        if not home_abbr:
+            logger.warning("No Kalshi abbr for home team '%s' (%s)", game["home_team"], game["sport_key"])
+        if not away_abbr:
+            logger.warning("No Kalshi abbr for away team '%s' (%s)", game["away_team"], game["sport_key"])
+        return []
+
+    matched = []
+    for market in markets:
+        ticker = market.get("ticker", "")
+        # Event ticker is the part before the last hyphen
+        event_ticker = "-".join(ticker.split("-")[:-1])
+        if home_abbr in event_ticker and away_abbr in event_ticker:
+            matched.append(market)
+    return matched
 
 
 def main():
@@ -136,27 +153,32 @@ def main():
             total_sent = 0
             for sport_key in in_window:
                 sport_cfg = config["sports"][sport_key]
+                kalshi_prefix = sport_cfg.get("kalshi_prefix")
+                if not kalshi_prefix:
+                    continue
+
+                # Fetch all today's Kalshi markets for this sport in one call
+                all_markets = fetch_kalshi_markets_for_series(kalshi_prefix, kalshi_api_key)
+                if not all_markets:
+                    logger.info("No active Kalshi markets found for %s today", sport_key)
+                    continue
+
+                # Fetch today's games from ESPN
                 games = fetch_today_games(sport_key, sport_cfg)
+                team_abbr = sport_cfg.get("team_abbr", {})
 
                 for game in games:
-                    event_ticker = build_kalshi_event_ticker(
-                        sport_key,
-                        game["away_team"],
-                        game["home_team"],
-                        game["game_date"],
-                        config,
-                    )
-                    if not event_ticker:
-                        continue
-                    markets = fetch_kalshi_markets(event_ticker, kalshi_api_key)
-                    for market in markets:
+                    matched_markets = match_game_to_markets(game, all_markets, team_abbr)
+                    for market in matched_markets:
+                        ticker = market.get("ticker", "")
+                        event_ticker = "-".join(ticker.split("-")[:-1])
                         record = {
                             "sport": sport_key,
                             "event_ticker": event_ticker,
                             "away_team": game["away_team"],
                             "home_team": game["home_team"],
                             "game_date": game["game_date"],
-                            "market_ticker": market.get("ticker"),
+                            "market_ticker": ticker,
                             "title": market.get("title"),
                             "yes_ask_dollars": market.get("yes_ask_dollars"),
                             "yes_bid_dollars": market.get("yes_bid_dollars"),
@@ -168,7 +190,7 @@ def main():
                         }
                         put_record("kalshi", record)
                         total_sent += 1
-                    time.sleep(0.2)
+                    time.sleep(0.1)
 
             sleep_secs = min(get_poll_interval(config["sports"][s]) for s in in_window)
             logger.info("Sent %d Kalshi market records to Firehose. Sleeping %ds...", total_sent, sleep_secs)
