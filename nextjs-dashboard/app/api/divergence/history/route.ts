@@ -17,7 +17,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Query today and yesterday to handle midnight UTC partition splits
   const now = new Date();
   const yesterday = new Date(now);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
@@ -31,19 +30,29 @@ export async function GET(request: NextRequest) {
   const yd = fmt(yesterday);
 
   try {
+    // Two tickers per game (one per team). Pick the one closest to sportsbook_home_prob
+    // per timestamp — that's the home team's "Yes" market.
     const sql = `
-      SELECT market_ticker, computed_at,
-             AVG(kalshi_implied_prob) as kalshi_implied_prob,
-             AVG(sportsbook_home_prob) as sportsbook_home_prob,
-             AVG(divergence) as divergence
-      FROM sports_betting.divergence_signals
-      WHERE (
-        (year='${td.year}' AND month='${td.month}' AND day='${td.day}')
-        OR (year='${yd.year}' AND month='${yd.month}' AND day='${yd.day}')
+      WITH ranked AS (
+        SELECT computed_at,
+               kalshi_implied_prob,
+               sportsbook_home_prob,
+               divergence,
+               ROW_NUMBER() OVER (
+                 PARTITION BY computed_at
+                 ORDER BY ABS(kalshi_implied_prob - sportsbook_home_prob) ASC
+               ) AS rn
+        FROM sports_betting.divergence_signals
+        WHERE (
+          (year='${td.year}' AND month='${td.month}' AND day='${td.day}')
+          OR (year='${yd.year}' AND month='${yd.month}' AND day='${yd.day}')
+        )
+          AND home_team='${home_team.replace(/'/g, "''")}'
+          AND away_team='${away_team.replace(/'/g, "''")}'
       )
-        AND home_team='${home_team.replace(/'/g, "''")}'
-        AND away_team='${away_team.replace(/'/g, "''")}'
-      GROUP BY market_ticker, computed_at
+      SELECT computed_at, kalshi_implied_prob, sportsbook_home_prob, divergence
+      FROM ranked
+      WHERE rn = 1
       ORDER BY computed_at ASC
       LIMIT 50000
     `;

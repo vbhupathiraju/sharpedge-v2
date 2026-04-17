@@ -16,7 +16,6 @@ const RANGES = [
 ] as const;
 
 interface DivRow {
-  market_ticker: string;
   computed_at: string;
   kalshi_implied_prob: number;
   sportsbook_home_prob: number;
