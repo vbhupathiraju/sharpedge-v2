@@ -75,7 +75,7 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
   const sportEmoji = sportInfo.emoji;
 
   const startTime = commenceTime
-    ? new Date(commenceTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' })
+    ? (() => { try { return new Date(commenceTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }); } catch { return ''; } })()
     : null;
 
   const minsUntilGame = commenceTime
@@ -181,7 +181,7 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
                       {sportKey === 'baseball_mlb' ? '⚾' : sportKey === 'icehockey_nhl' ? '🏒' : '🏀'}
                     </div>
                     <div style={{ marginBottom: 4 }}>Charts begin loading 1 hour before</div>
-                    <div style={{ color: 'var(--accent)', fontWeight: 700 }}>{startTime}</div>
+                    <div style={{ color: 'var(--text-muted)' }}>{startTime}</div>
                   </div>
                 ) : (
                   <>
