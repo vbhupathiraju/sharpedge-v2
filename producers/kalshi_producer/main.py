@@ -78,7 +78,10 @@ def fetch_kalshi_markets_for_series(series_ticker: str, kalshi_api_key: str) -> 
     headers = {"Authorization": f"Bearer {kalshi_api_key}"}
     all_markets = []
     cursor = None
-    today = datetime.now(timezone.utc).strftime("%y%b%d").upper()
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%y%b%d").upper()
+    yesterday = (now - timedelta(days=1)).strftime("%y%b%d").upper()
 
     try:
         for _ in range(5):  # max 5 pages
@@ -91,8 +94,8 @@ def fetch_kalshi_markets_for_series(series_ticker: str, kalshi_api_key: str) -> 
             resp.raise_for_status()
             data = resp.json()
             markets = data.get("markets", [])
-            # Filter to today's markets only
-            today_markets = [m for m in markets if today in m.get("ticker", "")]
+            # Filter to today's or yesterday's markets (handles midnight UTC crossover)
+            today_markets = [m for m in markets if today in m.get("ticker", "") or yesterday in m.get("ticker", "")]
             all_markets.extend(today_markets)
             cursor = data.get("cursor")
             if not cursor or not markets:
