@@ -12,11 +12,18 @@ interface SummaryItem {
 
 export default function SummaryBars({ items, title, onSelect }: { items: SummaryItem[]; title: string; onSelect?: (gameKey: string) => void }) {
   const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640);
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(t);
   }, []);
 
   return (
@@ -64,16 +71,13 @@ export default function SummaryBars({ items, title, onSelect }: { items: Summary
               {isMobile && d.shortLabel ? d.shortLabel : d.label}
             </div>
             <div style={{ flex: 1, height: 5, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden', minWidth: 0 }}>
-              <motion.div
-                initial={{ width: '0%' }}
-                animate={{ width: `${Math.min(d.value, 100)}%` }}
-                transition={{ duration: 0.8, delay: 0.1 + i * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                style={{
-                  height: '100%',
-                  background: `linear-gradient(90deg, ${d.color}, ${d.color}77)`,
-                  borderRadius: 3,
-                }}
-              />
+              <div style={{
+                height: '100%',
+                width: mounted ? `${Math.min(d.value, 100)}%` : '0%',
+                background: `linear-gradient(90deg, ${d.color}, ${d.color}77)`,
+                borderRadius: 3,
+                transition: `width 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${0.1 + i * 0.05}s`,
+              }} />
             </div>
             <div style={{
               fontSize: 13,
