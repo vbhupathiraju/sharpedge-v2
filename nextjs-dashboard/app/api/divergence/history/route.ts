@@ -75,11 +75,9 @@ export async function GET(request: NextRequest) {
   const td = fmt(now);
   const yd = fmt(yesterday);
 
-  // If we have the home team abbreviation, filter directly to the home ticker.
-  // Otherwise fall back to one row per timestamp using MIN(kalshi_implied_prob > 0.5).
   const tickerFilter = homeAbbr
     ? `AND market_ticker LIKE '%-${homeAbbr}'`
-    : `AND kalshi_implied_prob >= 0.5`;
+    : `AND market_ticker NOT LIKE '%-${(KALSHI_ABBR[sport_key] ?? {})[away_team] ?? "NOMATCH"}'`;
 
   try {
     const sql = `
