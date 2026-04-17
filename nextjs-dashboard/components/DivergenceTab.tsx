@@ -64,14 +64,18 @@ export default function DivergenceTab({ date, sport }: { date: string; sport: st
   const summaryItems = games
     .map(g => {
       const emoji = SPORT_EMOJI[g.rows[0].sport_key] ?? '';
-      return { label: `${emoji} ${g.away} @ ${g.home}`, shortLabel: `${emoji} ${abbr(g.away)} @ ${abbr(g.home)}`, value: Number(g.rows[0].divergence) * 100, color: 'var(--accent)' };
+      return { label: `${emoji} ${g.away} @ ${g.home}`, shortLabel: `${emoji} ${abbr(g.away)} @ ${abbr(g.home)}`, value: Number(g.rows[0].divergence) * 100, color: 'var(--accent)', gameKey: g.key };
     })
     .sort((a, b) => b.value - a.value);
+
+  const handleSelect = (gameKey: string) => {
+    window.dispatchEvent(new CustomEvent('sharpedge:opencard', { detail: `gamecard-${gameKey}` }));
+  };
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-        <SummaryBars items={summaryItems} title="CURRENT DIVERGENCE BY GAME" />
+        <SummaryBars items={summaryItems} title="CURRENT DIVERGENCE BY GAME" onSelect={handleSelect} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {sortGames(games).map((g, i) => {
@@ -80,7 +84,7 @@ export default function DivergenceTab({ date, sport }: { date: string; sport: st
           const badgeColor = div >= 10 ? 'var(--red)' : div >= 5 ? 'var(--yellow)' : 'var(--accent)';
           return (
             <motion.div key={g.key} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-              <GameCard homeTeam={g.home} awayTeam={g.away} sportKey={g.rows[0].sport_key} commenceTime={g.rows[0].commence_time}
+              <GameCard id={`gamecard-${g.key}`} homeTeam={g.home} awayTeam={g.away} sportKey={g.rows[0].sport_key} commenceTime={g.rows[0].commence_time}
                 badge={`${div.toFixed(1)}% ${dir === 'KALSHI_ABOVE' ? '↑' : '↓'}`}
                 badgeColor={badgeColor} subtitle="" score={g.score} mode="divergence" />
             </motion.div>

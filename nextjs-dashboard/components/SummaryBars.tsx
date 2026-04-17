@@ -7,10 +7,10 @@ interface SummaryItem {
   shortLabel?: string;
   value: number;
   color: string;
+  gameKey?: string;
 }
 
-export default function SummaryBars({ items, title }: { items: SummaryItem[]; title: string }) {
-  const maxVal = Math.max(...items.map(d => d.value), 1);
+export default function SummaryBars({ items, title, onSelect }: { items: SummaryItem[]; title: string; onSelect?: (gameKey: string) => void }) {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640);
@@ -43,7 +43,11 @@ export default function SummaryBars({ items, title }: { items: SummaryItem[]; ti
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.04 }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+            onClick={() => d.gameKey && onSelect?.(d.gameKey)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              cursor: d.gameKey ? 'pointer' : 'default',
+            }}
           >
             <div style={{
               fontSize: 12,
@@ -62,7 +66,7 @@ export default function SummaryBars({ items, title }: { items: SummaryItem[]; ti
             <div style={{ flex: 1, height: 5, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden', minWidth: 0 }}>
               <motion.div
                 initial={{ width: '0%' }}
-                animate={{ width: `${(d.value / maxVal) * 100}%` }}
+                animate={{ width: `${Math.min(d.value, 100)}%` }}
                 transition={{ duration: 0.8, delay: 0.1 + i * 0.05, ease: [0.16, 1, 0.3, 1] }}
                 style={{
                   height: '100%',

@@ -18,8 +18,23 @@ interface GameCardProps {
   commenceTime?: string;
 }
 
-export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeColor, subtitle, score, mode, commenceTime }: GameCardProps) {
+export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeColor, subtitle, score, mode, commenceTime, id }: GameCardProps & { id?: string }) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail === id) {
+        setOpen(true);
+        setTimeout(() => {
+          document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+      }
+    };
+    window.addEventListener('sharpedge:opencard', handler);
+    return () => window.removeEventListener('sharpedge:opencard', handler);
+  }, [id]);
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640);
@@ -87,7 +102,7 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
   const badgeBg = badgeColor === 'var(--red)' ? 'var(--red-dim)' : badgeColor === 'var(--yellow)' ? 'var(--yellow-dim)' : badgeColor === 'var(--accent)' ? 'var(--accent-glow)' : 'var(--blue-dim)';
 
   return (
-    <div style={{
+    <div id={id} style={{
       background: open ? 'var(--bg-card)' : 'var(--bg-secondary)',
       border: `1px solid ${borderColor}`,
       borderRadius: 12,

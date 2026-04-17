@@ -69,13 +69,18 @@ export default function SharpMoneyTab({ date, sport }: { date: string; sport: st
       label: `${emoji} ${g.away} @ ${g.home}`, shortLabel: `${emoji} ${abbr(g.away)} @ ${abbr(g.home)}`,
       value: totalMove,
       color: maxJump >= 10 ? 'var(--red)' : totalMove >= 5 ? 'var(--yellow)' : 'var(--blue)',
+      gameKey: g.key,
     };
   }).sort((a, b) => b.value - a.value);
+
+  const handleSelect = (gameKey: string) => {
+    window.dispatchEvent(new CustomEvent('sharpedge:opencard', { detail: `gamecard-${gameKey}` }));
+  };
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-        <SummaryBars items={summaryItems} title="PROBABILITY MOVEMENT BY GAME" />
+        <SummaryBars items={summaryItems} title="PROBABILITY MOVEMENT BY GAME" onSelect={handleSelect} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {sortGames(games).map((g, i) => {
@@ -84,7 +89,7 @@ export default function SharpMoneyTab({ date, sport }: { date: string; sport: st
           const badgeColor = maxJump >= 10 ? 'var(--red)' : totalMove >= 5 ? 'var(--yellow)' : 'var(--blue)';
           return (
             <motion.div key={g.key} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-              <GameCard homeTeam={g.home} awayTeam={g.away} sportKey={g.rows[0].sport_key} commenceTime={g.rows[0].commence_time}
+              <GameCard id={`gamecard-${g.key}`} homeTeam={g.home} awayTeam={g.away} sportKey={g.rows[0].sport_key} commenceTime={g.rows[0].commence_time}
                 badge={`${totalMove.toFixed(1)}% move${maxJump >= 10 ? ' ⚡' : ''}`}
                 badgeColor={badgeColor} subtitle="" score={g.score} mode="sharp" />
             </motion.div>
