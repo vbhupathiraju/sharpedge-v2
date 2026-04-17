@@ -74,8 +74,9 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
   const sportLabel = sportInfo.label;
   const sportEmoji = sportInfo.emoji;
 
-  const startTime = commenceTime
-    ? (() => { try { return new Date(commenceTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }); } catch { return ''; } })()
+  const resolvedCommenceTime = score?.commence_time || commenceTime;
+  const startTime = resolvedCommenceTime
+    ? (() => { try { return new Date(resolvedCommenceTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }); } catch { return ''; } })()
     : null;
 
   const minsUntilGame = commenceTime
