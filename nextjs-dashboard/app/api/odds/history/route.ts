@@ -14,11 +14,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Extract partition date from commence_time
-  const date = new Date(commence_time);
-  const year = date.getUTCFullYear().toString();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
+  // Query today and yesterday to handle midnight UTC partition splits
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+
+  const fmt = (d: Date) => ({
+    year: d.getUTCFullYear().toString(),
+    month: String(d.getUTCMonth() + 1).padStart(2, "0"),
+    day: String(d.getUTCDate()).padStart(2, "0"),
+  });
+  const td = fmt(now);
+  const yd = fmt(yesterday);
 
   try {
     const sql = `
@@ -27,7 +34,10 @@ export async function GET(request: NextRequest) {
              AVG(prev_implied_prob) as prev_implied_prob,
              AVG(current_implied_prob) as current_implied_prob
       FROM sports_betting.sharp_money_signals
-      WHERE year='${year}' AND month='${month}' AND day='${day}'
+      WHERE (
+        (year='${td.year}' AND month='${td.month}' AND day='${td.day}')
+        OR (year='${yd.year}' AND month='${yd.month}' AND day='${yd.day}')
+      )
         AND home_team='${home_team.replace(/'/g, "''")}'
         AND away_team='${away_team.replace(/'/g, "''")}'
       GROUP BY team, bookmaker_key, computed_at
