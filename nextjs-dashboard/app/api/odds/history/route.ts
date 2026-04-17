@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
         AND away_team='${away_team.replace(/'/g, "''")}'
       GROUP BY team, bookmaker_key, computed_at
       ORDER BY computed_at ASC
-      LIMIT 5000
+      LIMIT 50000
     `;
 
     const rows = await runAthenaQuery(sql);
