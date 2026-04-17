@@ -10,6 +10,11 @@ export async function GET(request: NextRequest) {
   }
 
   const [year, month, day] = date.split("-");
+  const nextDate = new Date(date + "T12:00:00Z");
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  const nextYear = nextDate.getUTCFullYear().toString();
+  const nextMonth = String(nextDate.getUTCMonth() + 1).padStart(2, "0");
+  const nextDay = String(nextDate.getUTCDate()).padStart(2, "0");
 
   try {
     const sql = `
@@ -23,7 +28,10 @@ export async function GET(request: NextRequest) {
         BOOL_OR(is_divergence_signal) as is_divergence_signal,
         MAX(num_bookmakers) as num_bookmakers
       FROM sports_betting.divergence_signals
-      WHERE year='${year}' AND month='${month}' AND day='${day}'
+      WHERE (
+        (year='${year}' AND month='${month}' AND day='${day}')
+        OR (year='${nextYear}' AND month='${nextMonth}' AND day='${nextDay}')
+      )
         AND sport_key NOT IN ('basketball_wncaab', 'basketball_ncaaw')
         AND CAST(date_trunc('day', at_timezone(from_iso8601_timestamp(commence_time), 'America/New_York')) AS DATE) = DATE '${year}-${month}-${day}'
       GROUP BY signal_type, sport_key, home_team, away_team,
