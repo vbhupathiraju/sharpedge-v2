@@ -18,11 +18,10 @@ interface DivRow {
 
 function sortGames(games: { key: string; rows: DivRow[]; score?: any; away: string; home: string }[]) {
   return [...games].sort((a, b) => {
-    const rank = (s: string) => s === 'in' ? 0 : s === 'pre' ? 1 : 2;
+    const rank = (s: string | undefined) => s === 'in' ? 0 : s === 'post' ? 2 : 1;
     const ar = rank(a.score?.state), br = rank(b.score?.state);
     if (ar !== br) return ar - br;
-    if (ar === 1) return new Date(a.rows[0].commence_time).getTime() - new Date(b.rows[0].commence_time).getTime();
-    return 0;
+    return new Date(a.rows[0].commence_time).getTime() - new Date(b.rows[0].commence_time).getTime();
   });
 }
 
