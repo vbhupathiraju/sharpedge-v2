@@ -27,8 +27,8 @@ export async function GET(req: NextRequest) {
         const away = competitors.find((c: any) => c.homeAway === 'away');
         if (!home || !away) continue;
 
-        const homeName = home.team.displayName;
-        const awayName = away.team.displayName;
+        const homeName = home.team.displayName.replace(/\./g, '');
+        const awayName = away.team.displayName.replace(/\./g, '');
         const status = comp.status || {};
         const statusType = status.type || {};
 
