@@ -5,7 +5,6 @@ import {
   ReferenceLine, ResponsiveContainer,
 } from 'recharts';
 
-// Fixed colors per sportsbook — consistent across all games and sports
 const BOOK_COLORS: Record<string, string> = {
   draftkings: '#00e5c4',
   fanduel:    '#4dabf7',
@@ -21,13 +20,6 @@ function bookColor(book: string, idx: number): string {
   return BOOK_COLORS[book.toLowerCase()] ?? FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
 }
 
-const RANGES = [
-  { label: '1H', hours: 1 },
-  { label: '3H', hours: 3 },
-  { label: '6H', hours: 6 },
-  { label: 'All', hours: null },
-];
-
 interface OddsRow {
   team: string;
   bookmaker_key: string;
@@ -41,7 +33,6 @@ function fmtOdds(v: number) {
 }
 
 function parseTs(ts: string): Date {
-  // Athena returns timestamps as '2026-04-16 21:37:09.864' (no T, no Z) — treat as UTC
   return new Date(ts.replace(' ', 'T').replace(/(\.\d+)?$/, '$1Z'));
 }
 
@@ -49,9 +40,8 @@ function fmtTime(ts: string) {
   return parseTs(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, homeTeam, colorMap, seriesKeys }: any) => {
   if (!active || !payload?.length) return null;
-  // Group by team
   const byTeam: Record<string, any[]> = {};
   for (const p of payload) {
     const [team, book] = p.dataKey.split('__');
@@ -59,19 +49,38 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     byTeam[team].push({ book, color: p.color, value: p.value });
   }
   return (
-    <div style={{ background: '#0d1520', border: '1px solid #243548', borderRadius: 8, padding: '10px 14px', fontSize: 12, fontFamily: 'Space Mono, monospace', minWidth: 160 }}>
+    <div style={{ background: '#0d1520', border: '1px solid #243548', borderRadius: 8, padding: '10px 14px', fontSize: 12, fontFamily: 'Space Mono, monospace', minWidth: 180 }}>
       <div style={{ color: '#6e8caa', marginBottom: 8 }}>{label}</div>
-      {Object.entries(byTeam).map(([team, books]) => (
-        <div key={team} style={{ marginBottom: 8 }}>
-          <div style={{ color: '#8aa4bf', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>{team}</div>
-          {books.map(({ book, color, value }) => (
-            <div key={book} style={{ color, marginBottom: 2, display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-              <span>{book}</span>
-              <span style={{ color: '#eaf2ff', fontWeight: 700 }}>{fmtOdds(value)}</span>
+      {Object.entries(byTeam).map(([team, books]) => {
+        const isHome = homeTeam && team === homeTeam;
+        return (
+          <div key={team} style={{ marginBottom: 8 }}>
+            <div style={{ color: '#8aa4bf', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width={16} height={4}>
+                {isHome
+                  ? <line x1="0" y1="2" x2="16" y2="2" stroke="#8aa4bf" strokeWidth="1.5" />
+                  : <line x1="0" y1="2" x2="16" y2="2" stroke="#8aa4bf" strokeWidth="1.5" strokeDasharray="4 2" />
+                }
+              </svg>
+              {team}
             </div>
-          ))}
-        </div>
-      ))}
+            {books.map(({ book, color, value }) => (
+              <div key={book} style={{ color, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg width={14} height={4}>
+                    {isHome
+                      ? <line x1="0" y1="2" x2="14" y2="2" stroke={color} strokeWidth="1.5" />
+                      : <line x1="0" y1="2" x2="14" y2="2" stroke={color} strokeWidth="1.5" strokeDasharray="4 2" />
+                    }
+                  </svg>
+                  <span>{book}</span>
+                </div>
+                <span style={{ color: '#eaf2ff', fontWeight: 700 }}>{fmtOdds(value)}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -83,25 +92,32 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
   commenceTime?: string;
   gameState?: string;
 }) {
-  const [range, setRange] = useState<number | null>(null);
+  const [rangeKey, setRangeKey] = useState<'all' | 'game' | '1h' | '30m'>('all');
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
-  // Compute time window: 1hr before game start until now (or final)
-  const timeWindow = useMemo(() => {
+  const gameStartMs = useMemo(() => {
     if (!commenceTime) return null;
-    const start = new Date(commenceTime).getTime() - 60 * 60 * 1000;
-    return start;
+    return new Date(commenceTime).getTime();
   }, [commenceTime]);
+
+  const preGameStartMs = useMemo(() => {
+    if (!gameStartMs) return null;
+    return gameStartMs - 60 * 60 * 1000;
+  }, [gameStartMs]);
+
+  const RANGES = [
+    { key: 'all',  label: 'ALL' },
+    { key: 'game', label: 'GAME' },
+    { key: '1h',   label: '1H' },
+    { key: '30m',  label: '30M' },
+  ] as const;
 
   const { seriesKeys, colorMap, teamGroups } = useMemo(() => {
     const valid = data.filter(r => {
       const v = Number(r.american_odds);
       return !isNaN(v) && v >= -2500 && v <= 2500;
     });
-
-    // Get unique books sorted alphabetically
     const books = [...new Set(valid.map(r => r.bookmaker_key))].sort();
-    // Get unique teams — home team first, then away
     const teams = [...new Set(valid.map(r => r.team))].sort((a, b) => {
       if (homeTeam) {
         if (a === homeTeam) return -1;
@@ -109,8 +125,6 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
       }
       return a.localeCompare(b);
     });
-
-    // Build keys: team__book, sorted by team then book alphabetically
     const keys: string[] = [];
     for (const team of teams) {
       for (const book of books) {
@@ -118,25 +132,20 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
         if (exists) keys.push(`${team}__${book}`);
       }
     }
-
-    // Color by book, not by series index
-    const cmap: Record<string, string> = {};
     const bookIdx: Record<string, number> = {};
     let idx = 0;
     books.forEach(b => { bookIdx[b] = idx++; });
+    const cmap: Record<string, string> = {};
     keys.forEach(k => {
       const book = k.split('__')[1];
       cmap[k] = bookColor(book, bookIdx[book]);
     });
-
-    // Group by team
     const groups: Record<string, string[]> = {};
     for (const key of keys) {
       const team = key.split('__')[0];
       if (!groups[team]) groups[team] = [];
       groups[team].push(key);
     }
-
     return { seriesKeys: keys, colorMap: cmap, teamGroups: groups };
   }, [data, homeTeam]);
 
@@ -145,15 +154,25 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
       const v = Number(r.american_odds);
       return !isNaN(v) && v >= -2500 && v <= 2500;
     });
-    // Apply time window first (1hr before game)
-    const windowed = timeWindow
-      ? valid.filter(r => parseTs(r.computed_at).getTime() >= timeWindow)
-      : valid;
-    // Then apply range filter on top
-    if (!range) return windowed;
-    const cutoff = Date.now() - range * 60 * 60 * 1000;
-    return windowed.filter(r => new Date(r.computed_at).getTime() >= cutoff);
-  }, [data, range, timeWindow]);
+    const now = Date.now();
+    // ALL: 1hr before game start → now
+    // GAME: game start → now
+    // 1H: max(1hr ago, 1hr before game start) → now
+    // 30M: max(30min ago, 1hr before game start) → now
+    let cutoff: number;
+    if (rangeKey === 'all') {
+      cutoff = preGameStartMs ?? 0;
+    } else if (rangeKey === 'game') {
+      cutoff = gameStartMs ?? preGameStartMs ?? 0;
+    } else if (rangeKey === '1h') {
+      const oneHrAgo = now - 60 * 60 * 1000;
+      cutoff = Math.max(oneHrAgo, preGameStartMs ?? 0);
+    } else {
+      const thirtyAgo = now - 30 * 60 * 1000;
+      cutoff = Math.max(thirtyAgo, preGameStartMs ?? 0);
+    }
+    return valid.filter(r => parseTs(r.computed_at).getTime() >= cutoff);
+  }, [data, rangeKey, gameStartMs, preGameStartMs]);
 
   const chartData = useMemo(() => {
     const byTime: Record<string, any> = {};
@@ -185,30 +204,28 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
     });
   };
 
-  const isHome = (team: string) => homeTeam && team === homeTeam;
+  const isHome = (team: string) => !!(homeTeam && team === homeTeam);
 
   return (
     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>
           {title.toUpperCase()}
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
           {RANGES.map(r => (
-            <button key={r.label} onClick={() => setRange(r.hours)} style={{
-              background: range === r.hours ? 'var(--accent)' : 'var(--bg-secondary)',
-              color: range === r.hours ? '#040d14' : 'var(--text-muted)',
+            <button key={r.key} onClick={() => setRangeKey(r.key)} style={{
+              background: rangeKey === r.key ? 'var(--accent)' : 'var(--bg-secondary)',
+              color: rangeKey === r.key ? '#040d14' : 'var(--text-muted)',
               border: '1px solid var(--border-bright)', borderRadius: 5,
               padding: '3px 10px', fontSize: 11, cursor: 'pointer',
-              fontFamily: 'var(--font-mono)', fontWeight: range === r.hours ? 700 : 400,
+              fontFamily: 'var(--font-mono)', fontWeight: rangeKey === r.key ? 700 : 400,
               transition: 'all 0.15s',
             }}>{r.label}</button>
           ))}
         </div>
       </div>
 
-      {/* Legend grouped by team */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
         {Object.entries(teamGroups).map(([team, keys]) => {
           const allHidden = keys.every(k => hidden.has(k));
@@ -220,7 +237,6 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
                 display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, width: '100%',
                 opacity: allHidden ? 0.4 : 1, transition: 'opacity 0.15s',
               }}>
-                {/* Solid line for home, dashed for away */}
                 <svg width={16} height={4}>
                   {solid
                     ? <line x1="0" y1="2" x2="16" y2="2" stroke="var(--border-bright)" strokeWidth="2" />
@@ -247,7 +263,7 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
                       opacity: isHidden ? 0.35 : 1, transition: 'all 0.15s',
                     }}>
                       <svg width={14} height={4}>
-                        {isHome(team)
+                        {solid
                           ? <line x1="0" y1="2" x2="14" y2="2" stroke={color} strokeWidth="2" />
                           : <line x1="0" y1="2" x2="14" y2="2" stroke={color} strokeWidth="2" strokeDasharray="4 2" />
                         }
@@ -262,12 +278,11 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
         })}
       </div>
 
-      {/* Chart */}
       {chartData.length === 0 ? (
         <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border)', borderRadius: 8 }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)', marginBottom: 8 }}>No data for this time range</div>
-            <button onClick={() => setRange(null)} style={{
+            <button onClick={() => setRangeKey('all')} style={{
               background: 'var(--accent)', color: '#040d14', border: 'none',
               borderRadius: 5, padding: '4px 12px', fontSize: 11, cursor: 'pointer',
               fontFamily: 'var(--font-mono)', fontWeight: 700,
@@ -280,7 +295,7 @@ export default function OddsChart({ data, title, homeTeam, commenceTime, gameSta
             <CartesianGrid strokeDasharray="3 3" stroke="#1a2535" vertical={false} />
             <XAxis dataKey="time" tick={{ fill: '#4a6580', fontSize: 10, fontFamily: 'Space Mono, monospace' }} tickLine={false} axisLine={{ stroke: '#1a2535' }} interval="preserveStartEnd" />
             <YAxis tickFormatter={fmtOdds} tick={{ fill: '#4a6580', fontSize: 10, fontFamily: 'Space Mono, monospace' }} tickLine={false} axisLine={false} width={48} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip homeTeam={homeTeam} colorMap={colorMap} seriesKeys={seriesKeys} />} />
             <ReferenceLine y={0} stroke="#243548" strokeDasharray="4 4" />
             {seriesKeys.map(key => {
               const team = key.split('__')[0];
