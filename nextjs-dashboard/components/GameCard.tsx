@@ -207,7 +207,7 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
                       </div>
                     )}
                     {loaded && mode === 'divergence' && divData.length > 0 && (
-                      <DivergenceChart data={divData} commenceTime={commenceTime} gameState={score?.state} />
+                      <DivergenceChart data={divData} commenceTime={commenceTime} gameState={score?.state} homeTeam={homeTeam} awayTeam={awayTeam} />
                     )}
                     {loaded && oddsData.length > 0 && (
                       <OddsChart data={oddsData} title="American Odds Movement" homeTeam={homeTeam} commenceTime={commenceTime} gameState={score?.state} />
