@@ -55,11 +55,13 @@ export async function runAthenaQuery(sql: string): Promise<Record<string, string
   let firstPage = true;
 
   do {
-    const resultsCmd = new GetQueryResultsCommand({
+    const resultsCmd: GetQueryResultsCommand = new GetQueryResultsCommand({
       QueryExecutionId,
       NextToken: nextToken,
     });
-    const { ResultSet, NextToken } = await client.send(resultsCmd);
+    const response = await client.send(resultsCmd);
+    const ResultSet = response.ResultSet;
+    const NextToken = response.NextToken;
     const rows = ResultSet?.Rows ?? [];
 
     if (firstPage) {
@@ -71,7 +73,7 @@ export async function runAthenaQuery(sql: string): Promise<Record<string, string
       allRows = allRows.concat(rows);
     }
 
-    nextToken = NextToken;
+    nextToken = NextToken as string | undefined;
   } while (nextToken);
 
   return allRows.map((row) => {
