@@ -9,11 +9,11 @@ const KALSHI_COLOR = '#00e5c4';
 const SPORTSBOOK_COLOR = '#ff6b9d';
 
 const RANGES = [
-  { label: '1H', hours: 1 },
-  { label: '3H', hours: 3 },
-  { label: '6H', hours: 6 },
-  { label: 'All', hours: null },
-];
+  { key: 'all',  label: 'ALL' },
+  { key: 'game', label: 'GAME' },
+  { key: '1h',   label: '1H' },
+  { key: '30m',  label: '30M' },
+] as const;
 
 interface DivRow {
   market_ticker: string;
@@ -54,13 +54,18 @@ export default function DivergenceChart({ data, commenceTime, gameState }: {
   commenceTime?: string;
   gameState?: string;
 }) {
-  const [range, setRange] = useState<number | null>(null);
+  const [rangeKey, setRangeKey] = useState<'all' | 'game' | '1h' | '30m'>('all');
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
-  const timeWindow = useMemo(() => {
+  const gameStartMs = useMemo(() => {
     if (!commenceTime) return null;
-    return new Date(commenceTime).getTime() - 60 * 60 * 1000;
+    return new Date(commenceTime).getTime();
   }, [commenceTime]);
+
+  const preGameStartMs = useMemo(() => {
+    if (!gameStartMs) return null;
+    return gameStartMs - 60 * 60 * 1000;
+  }, [gameStartMs]);
 
   const { tickerKeys, allLines } = useMemo(() => {
     const tickers = [...new Set(data.map(r => r.market_ticker))].sort();
@@ -74,13 +79,21 @@ export default function DivergenceChart({ data, commenceTime, gameState }: {
   }, [data]);
 
   const filtered = useMemo(() => {
-    const windowed = timeWindow
-      ? data.filter(r => parseTs(r.computed_at).getTime() >= timeWindow)
-      : data;
-    if (!range) return windowed;
-    const cutoff = Date.now() - range * 60 * 60 * 1000;
-    return windowed.filter(r => new Date(r.computed_at).getTime() >= cutoff);
-  }, [data, range, timeWindow]);
+    const now = Date.now();
+    let cutoff: number;
+    if (rangeKey === 'all') {
+      cutoff = preGameStartMs ?? 0;
+    } else if (rangeKey === 'game') {
+      cutoff = gameStartMs ?? preGameStartMs ?? 0;
+    } else if (rangeKey === '1h') {
+      const oneHrAgo = now - 60 * 60 * 1000;
+      cutoff = Math.max(oneHrAgo, preGameStartMs ?? 0);
+    } else {
+      const thirtyAgo = now - 30 * 60 * 1000;
+      cutoff = Math.max(thirtyAgo, preGameStartMs ?? 0);
+    }
+    return data.filter(r => parseTs(r.computed_at).getTime() >= cutoff);
+  }, [data, rangeKey, gameStartMs, preGameStartMs]);
 
   const chartData = useMemo(() => {
     const byTime: Record<string, any> = {};
@@ -111,12 +124,12 @@ export default function DivergenceChart({ data, commenceTime, gameState }: {
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
           {RANGES.map(r => (
-            <button key={r.label} onClick={() => setRange(r.hours)} style={{
-              background: range === r.hours ? 'var(--accent)' : 'var(--bg-secondary)',
-              color: range === r.hours ? '#040d14' : 'var(--text-muted)',
+            <button key={r.key} onClick={() => setRangeKey(r.key)} style={{
+              background: rangeKey === r.key ? 'var(--accent)' : 'var(--bg-secondary)',
+              color: rangeKey === r.key ? '#040d14' : 'var(--text-muted)',
               border: '1px solid var(--border-bright)', borderRadius: 5,
               padding: '3px 10px', fontSize: 11, cursor: 'pointer',
-              fontFamily: 'var(--font-mono)', fontWeight: range === r.hours ? 700 : 400,
+              fontFamily: 'var(--font-mono)', fontWeight: rangeKey === r.key ? 700 : 400,
               transition: 'all 0.15s',
             }}>{r.label}</button>
           ))}
@@ -153,7 +166,7 @@ export default function DivergenceChart({ data, commenceTime, gameState }: {
         <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border)', borderRadius: 8 }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)', marginBottom: 8 }}>No data for this time range</div>
-            <button onClick={() => setRange(null)} style={{
+            <button onClick={() => setRangeKey('all')} style={{
               background: 'var(--accent)', color: '#040d14', border: 'none',
               borderRadius: 5, padding: '4px 12px', fontSize: 11, cursor: 'pointer',
               fontFamily: 'var(--font-mono)', fontWeight: 700,
@@ -172,8 +185,8 @@ export default function DivergenceChart({ data, commenceTime, gameState }: {
               !hidden.has(l.key) && (
                 <Line key={l.key} type="monotone" dataKey={l.key} name={l.label}
                   stroke={KALSHI_COLOR} strokeWidth={2}
-                  dot={{ r: 3, fill: KALSHI_COLOR, strokeWidth: 0 }}
-                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  dot={false}
+                  activeDot={{ r: 5, fill: KALSHI_COLOR, strokeWidth: 0 }}
                   connectNulls isAnimationActive={false}
                 />
               )
@@ -181,8 +194,8 @@ export default function DivergenceChart({ data, commenceTime, gameState }: {
             {!hidden.has('sportsbook_avg') && (
               <Line type="monotone" dataKey="sportsbook_avg" name="Sportsbook Avg"
                 stroke={SPORTSBOOK_COLOR} strokeWidth={2} strokeDasharray="6 3"
-                dot={{ r: 3, fill: SPORTSBOOK_COLOR, strokeWidth: 0 }}
-                activeDot={{ r: 6, strokeWidth: 0 }}
+                dot={false}
+                activeDot={{ r: 5, fill: SPORTSBOOK_COLOR, strokeWidth: 0 }}
                 connectNulls isAnimationActive={false}
               />
             )}
