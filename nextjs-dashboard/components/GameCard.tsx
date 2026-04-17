@@ -75,8 +75,13 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
   const sportEmoji = sportInfo.emoji;
 
   const startTime = commenceTime
-    ? new Date(commenceTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York' }) + ' ET'
+    ? new Date(commenceTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' })
     : null;
+
+  const minsUntilGame = commenceTime
+    ? (new Date(commenceTime).getTime() - Date.now()) / 60000
+    : null;
+  const tooEarlyForCharts = minsUntilGame !== null && minsUntilGame > 60;
   const borderColor = isLive ? 'var(--red)' : open ? 'var(--border-bright)' : 'var(--border)';
   const badgeBg = badgeColor === 'var(--red)' ? 'var(--red-dim)' : badgeColor === 'var(--yellow)' ? 'var(--yellow-dim)' : badgeColor === 'var(--accent)' ? 'var(--accent-glow)' : 'var(--blue-dim)';
 
@@ -170,21 +175,33 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
             <div style={{ padding: '0 20px 20px', borderTop: '1px solid var(--border)' }}>
               <div style={{ paddingTop: 16 }}>
                 <ScoreBoard score={score} sportKey={sportKey} homeTeam={homeTeam} awayTeam={awayTeam} commenceTime={score?.commence_time ?? commenceTime} />
-                {loadingCharts && (
-                  <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '24px 0', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
-                    Loading chart data...
+                {tooEarlyForCharts ? (
+                  <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '32px 0', textAlign: 'center', fontFamily: 'var(--font-mono)', border: '1px dashed var(--border)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 22, marginBottom: 10 }}>
+                      {sportKey === 'baseball_mlb' ? '⚾' : sportKey === 'icehockey_nhl' ? '🏒' : '🏀'}
+                    </div>
+                    <div style={{ marginBottom: 4 }}>Charts begin loading 1 hour before</div>
+                    <div style={{ color: 'var(--accent)', fontWeight: 700 }}>{startTime}</div>
                   </div>
-                )}
-                {loaded && mode === 'divergence' && divData.length > 0 && (
-                  <DivergenceChart data={divData} commenceTime={commenceTime} gameState={score?.state} />
-                )}
-                {loaded && oddsData.length > 0 && (
-                  <OddsChart data={oddsData} title="American Odds Movement" homeTeam={homeTeam} commenceTime={commenceTime} gameState={score?.state} />
-                )}
-                {loaded && oddsData.length === 0 && divData.length === 0 && (
-                  <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '16px 0', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
-                    No chart history yet — data accumulates as the pipeline runs.
-                  </div>
+                ) : (
+                  <>
+                    {loadingCharts && (
+                      <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '24px 0', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
+                        Loading chart data...
+                      </div>
+                    )}
+                    {loaded && mode === 'divergence' && divData.length > 0 && (
+                      <DivergenceChart data={divData} commenceTime={commenceTime} gameState={score?.state} />
+                    )}
+                    {loaded && oddsData.length > 0 && (
+                      <OddsChart data={oddsData} title="American Odds Movement" homeTeam={homeTeam} commenceTime={commenceTime} gameState={score?.state} />
+                    )}
+                    {loaded && oddsData.length === 0 && divData.length === 0 && (
+                      <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '16px 0', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
+                        No chart history yet — data accumulates as the pipeline runs.
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
