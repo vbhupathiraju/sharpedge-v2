@@ -48,19 +48,34 @@ export async function runAthenaQuery(sql: string): Promise<Record<string, string
     }
   }
 
-  // Fetch results
-  const resultsCmd = new GetQueryResultsCommand({ QueryExecutionId });
-  const { ResultSet } = await client.send(resultsCmd);
+  // Fetch results with pagination
+  let allRows: any[] = [];
+  let nextToken: string | undefined = undefined;
+  let headers: string[] = [];
+  let firstPage = true;
 
-  const rows = ResultSet?.Rows ?? [];
-  if (rows.length < 2) return []; // only header row = no data
+  do {
+    const resultsCmd = new GetQueryResultsCommand({
+      QueryExecutionId,
+      NextToken: nextToken,
+    });
+    const { ResultSet, NextToken } = await client.send(resultsCmd);
+    const rows = ResultSet?.Rows ?? [];
 
-  // First row is column headers
-  const headers = rows[0].Data?.map((d) => d.VarCharValue ?? "") ?? [];
+    if (firstPage) {
+      if (rows.length < 2) return [];
+      headers = rows[0].Data?.map((d) => d.VarCharValue ?? "") ?? [];
+      allRows = allRows.concat(rows.slice(1));
+      firstPage = false;
+    } else {
+      allRows = allRows.concat(rows);
+    }
 
-  // Convert remaining rows to objects
-  return rows.slice(1).map((row) => {
-    const values = row.Data?.map((d) => d.VarCharValue ?? "") ?? [];
+    nextToken = NextToken;
+  } while (nextToken);
+
+  return allRows.map((row) => {
+    const values = row.Data?.map((d: any) => d.VarCharValue ?? "") ?? [];
     return Object.fromEntries(headers.map((h, i) => [h, values[i] ?? ""]));
   });
 }
