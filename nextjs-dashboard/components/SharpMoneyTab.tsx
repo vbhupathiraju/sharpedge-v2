@@ -56,11 +56,17 @@ export default function SharpMoneyTab({ date, sport }: { date: string; sport: st
     return { key, rows, score: scores[key], away, home };
   });
 
+  const SPORT_EMOJI: Record<string, string> = {
+    basketball_nba: '🏀', baseball_mlb: '⚾', icehockey_nhl: '🏒',
+    basketball_ncaab: '🏀', american_football_nfl: '🏈',
+  };
+
   const summaryItems = games.map(g => {
     const totalMove = Number(g.rows[0].prob_movement) * 100;
     const maxJump = Math.max(...g.rows.map((r: SharpRow) => Number(r.prob_movement) * 100));
+    const emoji = SPORT_EMOJI[g.rows[0].sport_key] ?? '';
     return {
-      label: `${g.away} @ ${g.home}`, shortLabel: `${abbr(g.away)} @ ${abbr(g.home)}`,
+      label: `${emoji} ${g.away} @ ${g.home}`, shortLabel: `${emoji} ${abbr(g.away)} @ ${abbr(g.home)}`,
       value: totalMove,
       color: maxJump >= 10 ? 'var(--red)' : totalMove >= 5 ? 'var(--yellow)' : 'var(--blue)',
     };

@@ -63,14 +63,20 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
     return () => clearInterval(t);
   }, [open, isLive]);
 
-  const SPORT_LABELS: Record<string, string> = {
-    basketball_nba: 'NBA',
-    basketball_ncaab: 'NCAAB',
-    baseball_mlb: 'MLB',
-    icehockey_nhl: 'NHL',
-    american_football_nfl: 'NFL',
+  const SPORT_LABELS: Record<string, { label: string; emoji: string }> = {
+    basketball_nba:         { label: 'NBA',   emoji: '🏀' },
+    basketball_ncaab:       { label: 'NCAAB', emoji: '🏀' },
+    baseball_mlb:           { label: 'MLB',   emoji: '⚾' },
+    icehockey_nhl:          { label: 'NHL',   emoji: '🏒' },
+    american_football_nfl:  { label: 'NFL',   emoji: '🏈' },
   };
-  const sportLabel = SPORT_LABELS[sportKey] ?? sportKey;
+  const sportInfo = SPORT_LABELS[sportKey] ?? { label: sportKey, emoji: '' };
+  const sportLabel = sportInfo.label;
+  const sportEmoji = sportInfo.emoji;
+
+  const startTime = commenceTime
+    ? new Date(commenceTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York' }) + ' ET'
+    : null;
   const borderColor = isLive ? 'var(--red)' : open ? 'var(--border-bright)' : 'var(--border)';
   const badgeBg = badgeColor === 'var(--red)' ? 'var(--red-dim)' : badgeColor === 'var(--yellow)' ? 'var(--yellow-dim)' : badgeColor === 'var(--accent)' ? 'var(--accent-glow)' : 'var(--blue-dim)';
 
@@ -110,6 +116,12 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
               letterSpacing: '0.1em', flexShrink: 0, fontFamily: 'var(--font-mono)',
             }}>FINAL</span>
           )}
+          <span style={{
+            color: 'var(--text-muted)', fontSize: 10, flexShrink: 0,
+            background: 'var(--bg-primary)', border: '1px solid var(--border)',
+            borderRadius: 4, padding: '2px 7px', fontFamily: 'var(--font-mono)',
+            letterSpacing: '0.05em',
+          }}>{sportEmoji} {sportLabel}</span>
           <div style={{ minWidth: 0 }}>
             <span style={{
               color: 'var(--text-primary)', fontSize: 14, fontWeight: 500,
@@ -119,12 +131,12 @@ export default function GameCard({ homeTeam, awayTeam, sportKey, badge, badgeCol
               {isMobile ? abbr(awayTeam) : awayTeam} <span style={{ color: 'var(--text-muted)', fontWeight: 300 }}>@</span> {isMobile ? abbr(homeTeam) : homeTeam}
             </span>
           </div>
-          <span style={{
-            color: 'var(--text-muted)', fontSize: 10, flexShrink: 0,
-            background: 'var(--bg-primary)', border: '1px solid var(--border)',
-            borderRadius: 4, padding: '2px 7px', fontFamily: 'var(--font-mono)',
-            letterSpacing: '0.05em',
-          }}>{sportLabel}</span>
+          {startTime && !isLive && !isFinal && (
+            <span style={{
+              color: 'var(--text-muted)', fontSize: 10, flexShrink: 0,
+              fontFamily: 'var(--font-mono)', letterSpacing: '0.05em',
+            }}>{startTime}</span>
+          )}
         </div>
 
         {/* Right side */}

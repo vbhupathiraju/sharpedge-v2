@@ -56,8 +56,16 @@ export default function DivergenceTab({ date, sport }: { date: string; sport: st
     return { key, rows, score: scores[key], away, home };
   });
 
+  const SPORT_EMOJI: Record<string, string> = {
+    basketball_nba: '🏀', baseball_mlb: '⚾', icehockey_nhl: '🏒',
+    basketball_ncaab: '🏀', american_football_nfl: '🏈',
+  };
+
   const summaryItems = games
-    .map(g => ({ label: `${g.away} @ ${g.home}`, shortLabel: `${abbr(g.away)} @ ${abbr(g.home)}`, value: Number(g.rows[0].divergence) * 100, color: 'var(--accent)' }))
+    .map(g => {
+      const emoji = SPORT_EMOJI[g.rows[0].sport_key] ?? '';
+      return { label: `${emoji} ${g.away} @ ${g.home}`, shortLabel: `${emoji} ${abbr(g.away)} @ ${abbr(g.home)}`, value: Number(g.rows[0].divergence) * 100, color: 'var(--accent)' };
+    })
     .sort((a, b) => b.value - a.value);
 
   return (

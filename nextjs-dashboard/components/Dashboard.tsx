@@ -10,9 +10,9 @@ import { format, subDays } from 'date-fns';
 
 const SPORTS = [
   { key: 'all', label: 'All Sports' },
-  { key: 'basketball_nba', label: 'NBA' },
-  { key: 'baseball_mlb', label: 'MLB' },
-  { key: 'icehockey_nhl', label: 'NHL' },
+  { key: 'basketball_nba', label: '🏀 NBA' },
+  { key: 'baseball_mlb', label: '⚾ MLB' },
+  { key: 'icehockey_nhl', label: '🏒 NHL' },
 ];
 
 const TABS = [
